@@ -4,6 +4,7 @@ import 'dart:io';
 import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/custom_modal.dart';
+import '../widgets/image_viewer.dart';
 
 class IncidentResolutionScreen extends StatefulWidget {
   final Incident incident;
@@ -256,6 +257,53 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
               
               const SizedBox(height: 24),
               
+              // Mostrar imagen de evidencia si existe
+              if (widget.incident.evidenceImage != null) ...[
+                const Text(
+                  'Evidencia del Incidente',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ImageViewer(
+                  imageBase64: widget.incident.evidenceImage,
+                ),
+                const SizedBox(height: 24),
+              ],
+              
+              // Mostrar descripción si existe
+              if (widget.incident.description != null && widget.incident.description!.isNotEmpty) ...[
+                const Text(
+                  'Descripción',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.lightBlue.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    widget.incident.description!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+              
               // Botón tomar incidente (solo si está pendiente)
               if (widget.incident.status == IncidentStatus.pending) ...[
                 ElevatedButton.icon(
@@ -281,6 +329,53 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                
+                // Mostrar imagen de resolución existente si existe
+                if (widget.incident.resolutionImage != null) ...[
+                  const Text(
+                    'Evidencia de Resolución',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ImageViewer(
+                    imageBase64: widget.incident.resolutionImage,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Mostrar notas de resolución existentes si existen
+                if (widget.incident.resolutionNotes != null && widget.incident.resolutionNotes!.isNotEmpty) ...[
+                  const Text(
+                    'Notas de Resolución',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.lightBlue.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      widget.incident.resolutionNotes!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 
                 TextField(
                   controller: _notesController,

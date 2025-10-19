@@ -15,7 +15,9 @@ class Incident {
   final String? assignedTo;
   final DateTime? resolvedAt;
   final String? description;
-  final String? mediaUrl;
+  final String? evidenceImage; // Cambiado de mediaUrl a evidenceImage (base64)
+  final String? resolutionImage; // Agregado para imagen de resolución (base64)
+  final String? resolutionNotes; // Agregado para notas de resolución
 
   Incident({
     required this.id,
@@ -28,7 +30,9 @@ class Incident {
     this.assignedTo,
     this.resolvedAt,
     this.description,
-    this.mediaUrl,
+    this.evidenceImage,
+    this.resolutionImage,
+    this.resolutionNotes,
   });
 
   String getStatusText() {
@@ -81,7 +85,9 @@ class Incident {
       assignedTo: data['assignedTo']?['name'],
       resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
       description: data['description'],
-      mediaUrl: data['evidenceUrl'],
+      evidenceImage: data['evidenceImage'], // Cambiado de evidenceUrl
+      resolutionImage: data['resolutionImage'], // Agregado
+      resolutionNotes: data['resolutionNotes'], // Agregado
     );
   }
 
@@ -110,7 +116,7 @@ class Incident {
   }
 }
 
-// Actualizar models/incident_model.dart con fromFirestore
+// Extensión para conversión con Firestore
 extension IncidentFirestore on Incident {
   static Incident fromFirestore(String id, Map<String, dynamic> data) {
     return Incident(
@@ -124,7 +130,9 @@ extension IncidentFirestore on Incident {
       assignedTo: data['assignedTo']?['name'],
       resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
       description: data['description'],
-      mediaUrl: data['evidenceUrl'],
+      evidenceImage: data['evidenceImage'],
+      resolutionImage: data['resolutionImage'],
+      resolutionNotes: data['resolutionNotes'],
     );
   }
 
@@ -154,7 +162,9 @@ extension IncidentFirestore on Incident {
       'assignedTo': assignedTo != null ? {'name': assignedTo} : null,
       'resolvedAt': resolvedAt != null ? Timestamp.fromDate(resolvedAt!) : null,
       'description': description,
-      'evidenceUrl': mediaUrl,
+      'evidenceImage': evidenceImage,
+      'resolutionImage': resolutionImage,
+      'resolutionNotes': resolutionNotes,
     };
   }
 

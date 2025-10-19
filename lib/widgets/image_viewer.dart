@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import '../utils/colors.dart';
+import '../services/storage_service.dart';
 
 class ImageViewer extends StatelessWidget {
-  final String? imageUrl;
+  final String? imageBase64; // Cambiado de imageUrl a imageBase64
   final File? imageFile;
   final VoidCallback? onDelete;
 
   const ImageViewer({
     Key? key,
-    this.imageUrl,
+    this.imageBase64,
     this.imageFile,
     this.onDelete,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final storageService = StorageService();
+    
     return Stack(
       children: [
         ClipRRect(
@@ -27,44 +31,8 @@ class ImageViewer extends StatelessWidget {
                   width: double.infinity,
                   fit: BoxFit.cover,
                 )
-              : imageUrl != null
-                  ? Image.network(
-                      imageUrl!,
-                      height: 200,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          height: 200,
-                          width: double.infinity,
-                          color: AppColors.lightGray,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                  : null,
-                              color: AppColors.accentGold,
-                            ),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 200,
-                          width: double.infinity,
-                          color: AppColors.lightGray,
-                          child: const Center(
-                            child: Icon(
-                              Icons.error_outline,
-                              size: 50,
-                              color: AppColors.danger,
-                            ),
-                          ),
-                        );
-                      },
-                    )
+              : imageBase64 != null
+                  ? _buildBase64Image(storageService, imageBase64!)
                   : Container(
                       height: 200,
                       width: double.infinity,
@@ -78,6 +46,7 @@ class ImageViewer extends StatelessWidget {
                       ),
                     ),
         ),
+
         if (onDelete != null)
           Positioned(
             top: 8,
@@ -99,7 +68,7 @@ class ImageViewer extends StatelessWidget {
             ),
           ),
         // Botón para ver en pantalla completa
-        if (imageUrl != null || imageFile != null)
+        if (imageBase64 != null || imageFile != null)
           Positioned(
             bottom: 8,
             right: 8,
@@ -109,7 +78,7 @@ class ImageViewer extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (context) => FullScreenImageViewer(
-                      imageUrl: imageUrl,
+                      imageBase64: imageBase64,
                       imageFile: imageFile,
                     ),
                   ),
@@ -132,20 +101,61 @@ class ImageViewer extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildBase64Image(StorageService storageService, String base64String) {
+    try {
+      final bytes = storageService.base64ToBytes(base64String);
+      return Image.memory(
+        bytes,
+        height: 200,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: 200,
+            width: double.infinity,
+            color: AppColors.lightGray,
+            child: const Center(
+              child: Icon(
+                Icons.error_outline,
+                size: 50,
+                color: AppColors.danger,
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      return Container(
+        height: 200,
+        width: double.infinity,
+        color: AppColors.lightGray,
+        child: const Center(
+          child: Icon(
+            Icons.error_outline,
+            size: 50,
+            color: AppColors.danger,
+          ),
+        ),
+      );
+    }
+  }
 }
 
 class FullScreenImageViewer extends StatelessWidget {
-  final String? imageUrl;
+  final String? imageBase64;
   final File? imageFile;
 
   const FullScreenImageViewer({
     Key? key,
-    this.imageUrl,
+    this.imageBase64,
     this.imageFile,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final storageService = StorageService();
+    
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -158,8 +168,8 @@ class FullScreenImageViewer extends StatelessWidget {
           maxScale: 4.0,
           child: imageFile != null
               ? Image.file(imageFile!)
-              : imageUrl != null
-                  ? Image.network(imageUrl!)
+              : imageBase64 != null
+                  ? Image.memory(storageService.base64ToBytes(imageBase64!))
                   : const SizedBox(),
         ),
       ),

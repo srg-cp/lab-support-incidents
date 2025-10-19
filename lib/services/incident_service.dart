@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'storage_service.dart';
 
 class IncidentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final StorageService _storageService = StorageService();
 
   // Crear nuevo incidente
   Future<String> createIncident({
@@ -20,13 +20,17 @@ class IncidentService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Usuario no autenticado');
 
-      // Subir evidencia si existe
-      String? evidenceUrl;
+      // Convertir imagen a base64 si existe
+      String? evidenceBase64;
       if (evidenceFile != null) {
-        evidenceUrl = await _uploadFile(
-          file: evidenceFile,
-          path: 'incidents/${DateTime.now().millisecondsSinceEpoch}_${user.uid}',
-        );
+        // Validar que sea una imagen
+        if (!_storageService.isValidImageFile(evidenceFile)) {
+          throw Exception('Solo se permiten archivos de imagen (JPG, JPEG, PNG)');
+        }
+        
+        // Comprimir si es necesario
+        final compressedFile = await _storageService.compressImageIfNeeded(evidenceFile);
+        evidenceBase64 = await _storageService.convertImageToBase64(compressedFile);
       }
 
       // Crear documento de incidente
@@ -42,11 +46,11 @@ class IncidentService {
           'email': user.email,
         },
         'reportedAt': FieldValue.serverTimestamp(),
-        'evidenceUrl': evidenceUrl,
+        'evidenceImage': evidenceBase64, // Cambiado de evidenceUrl a evidenceImage
         'assignedTo': null,
         'assignedAt': null,
         'resolvedAt': null,
-        'resolutionUrl': null,
+        'resolutionImage': null, // Cambiado de resolutionUrl a resolutionImage
         'resolutionNotes': null,
       };
 
@@ -116,19 +120,23 @@ class IncidentService {
     File? resolutionFile,
   }) async {
     try {
-      // Subir evidencia de resolución si existe
-      String? resolutionUrl;
+      // Convertir imagen de resolución a base64 si existe
+      String? resolutionBase64;
       if (resolutionFile != null) {
-        resolutionUrl = await _uploadFile(
-          file: resolutionFile,
-          path: 'resolutions/${DateTime.now().millisecondsSinceEpoch}_$incidentId',
-        );
+        // Validar que sea una imagen
+        if (!_storageService.isValidImageFile(resolutionFile)) {
+          throw Exception('Solo se permiten archivos de imagen (JPG, JPEG, PNG)');
+        }
+        
+        // Comprimir si es necesario
+        final compressedFile = await _storageService.compressImageIfNeeded(resolutionFile);
+        resolutionBase64 = await _storageService.convertImageToBase64(compressedFile);
       }
 
       final Map<String, Object?> updateData = {
         'status': status,
         'resolutionNotes': notes,
-        'resolutionUrl': resolutionUrl,
+        'resolutionImage': resolutionBase64, // Cambiado de resolutionUrl a resolutionImage
       };
 
       if (status == 'resolved') {
@@ -136,20 +144,6 @@ class IncidentService {
       }
 
       await _firestore.collection('incidents').doc(incidentId).update(updateData);
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // Subir archivo a Storage
-  Future<String> _uploadFile({
-    required File file,
-    required String path,
-  }) async {
-    try {
-      final ref = _storage.ref().child(path);
-      await ref.putFile(file);
-      return await ref.getDownloadURL();
     } catch (e) {
       rethrow;
     }

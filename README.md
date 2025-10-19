@@ -121,33 +121,7 @@ service cloud.firestore {
 }
 ```
 
-#### 4.3 Storage
-1. Ve a **Storage** → **Comenzar**
-2. Selecciona ubicación (preferiblemente `southamerica-east1`)
 
-**Reglas de seguridad sugeridas para Storage:**
-```javascript
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /incidents/{incidentId}/{allPaths=**} {
-      // Cualquier usuario autenticado puede subir evidencia
-      allow write: if request.auth != null;
-      // Cualquier usuario autenticado puede leer
-      allow read: if request.auth != null;
-    }
-    
-    match /resolutions/{incidentId}/{allPaths=**} {
-      // Solo soporte y admin pueden subir resoluciones
-      allow write: if request.auth != null 
-                   && (request.auth.token.role == 'admin' 
-                       || request.auth.token.role == 'support');
-      // Cualquier usuario autenticado puede leer
-      allow read: if request.auth != null;
-    }
-  }
-}
-```
 
 ### 5. Estructura de Datos en Firestore
 
@@ -172,8 +146,8 @@ service firebase.storage {
   },
   "assignedAt": "timestamp",
   "resolvedAt": "timestamp",
-  "evidenceUrl": "storage-url",
-  "resolutionUrl": "storage-url",
+  "evidenceImage": "base64-encoded-image",
+  "resolutionImage": "base64-encoded-image",
   "resolutionNotes": "Notas de resolución..."
 }
 ```
