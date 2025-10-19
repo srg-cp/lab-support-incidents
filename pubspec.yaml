@@ -1,7 +1,7 @@
-name: flutter_lab_support_incidents
+name: upt_lab_incidents
 description: Sistema de Gestión de Incidentes de Laboratorio - Universidad Privada de Tacna
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -34,11 +34,17 @@ dependencies:
   # Iconos de Cupertino
   cupertino_icons: ^1.0.6
   
-  # Manejo de estados (opcional, pero recomendado)
+  # Manejo de estados
   provider: ^6.1.1
   
   # Para formatear fechas
   intl: ^0.18.1
+  
+  # Conectividad (verificar internet)
+  connectivity_plus: ^5.0.2
+  
+  # Cache de imágenes
+  cached_network_image: ^3.3.0
 
 dev_dependencies:
   flutter_test:
@@ -48,14 +54,17 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
-  # Puedes agregar assets aquí si tienes el logo de la UPT
+  # Assets (descomenta si tienes el logo de la UPT)
   # assets:
-  #   - assets/images/logo_upt.png
+  #   - assets/images/
+  #   - assets/icons/
   
   # Fuentes personalizadas (opcional)
   # fonts:
-  #   - family: CustomFont
+  #   - family: Poppins
   #     fonts:
-  #       - asset: fonts/CustomFont-Regular.ttf
-  #       - asset: fonts/CustomFont-Bold.ttf
+  #       - asset: fonts/Poppins-Regular.ttf
+  #       - asset: fonts/Poppins-Medium.ttf
+  #         weight: 500
+  #       - asset: fonts/Poppins-Bold.ttf
   #         weight: 700

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/colors.dart';
 
 enum IncidentStatus { pending, inProgress, resolved }
@@ -64,6 +65,107 @@ class Incident {
       return 'Hace ${difference.inMinutes} minuto${difference.inMinutes > 1 ? "s" : ""}';
     } else {
       return 'Hace un momento';
+    }
+  }
+
+  // Factory constructor para crear desde Firestore
+  static Incident fromFirestore(String id, Map<String, dynamic> data) {
+    return Incident(
+      id: id,
+      labName: data['labName'] ?? '',
+      computerNumbers: List<int>.from(data['computerNumbers'] ?? []),
+      type: data['incidentType'] ?? '',
+      status: _parseStatus(data['status']),
+      reportedBy: data['reportedBy']?['name'] ?? 'Usuario',
+      reportedAt: (data['reportedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      assignedTo: data['assignedTo']?['name'],
+      resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
+      description: data['description'],
+      mediaUrl: data['evidenceUrl'],
+    );
+  }
+
+  static IncidentStatus _parseStatus(String? status) {
+    switch (status) {
+      case 'pending':
+        return IncidentStatus.pending;
+      case 'inProgress':
+        return IncidentStatus.inProgress;
+      case 'resolved':
+        return IncidentStatus.resolved;
+      default:
+        return IncidentStatus.pending;
+    }
+  }
+
+  static String _statusToString(IncidentStatus status) {
+    switch (status) {
+      case IncidentStatus.pending:
+        return 'pending';
+      case IncidentStatus.inProgress:
+        return 'inProgress';
+      case IncidentStatus.resolved:
+        return 'resolved';
+    }
+  }
+}
+
+// Actualizar models/incident_model.dart con fromFirestore
+extension IncidentFirestore on Incident {
+  static Incident fromFirestore(String id, Map<String, dynamic> data) {
+    return Incident(
+      id: id,
+      labName: data['labName'] ?? '',
+      computerNumbers: List<int>.from(data['computerNumbers'] ?? []),
+      type: data['incidentType'] ?? '',
+      status: _parseStatus(data['status']),
+      reportedBy: data['reportedBy']?['name'] ?? 'Usuario',
+      reportedAt: (data['reportedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      assignedTo: data['assignedTo']?['name'],
+      resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
+      description: data['description'],
+      mediaUrl: data['evidenceUrl'],
+    );
+  }
+
+  static IncidentStatus _parseStatus(String? status) {
+    switch (status) {
+      case 'pending':
+        return IncidentStatus.pending;
+      case 'inProgress':
+        return IncidentStatus.inProgress;
+      case 'resolved':
+        return IncidentStatus.resolved;
+      default:
+        return IncidentStatus.pending;
+    }
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'labName': labName,
+      'computerNumbers': computerNumbers,
+      'incidentType': type,
+      'status': _statusToString(status),
+      'reportedBy': {
+        'name': reportedBy,
+      },
+      'reportedAt': Timestamp.fromDate(reportedAt),
+      'assignedTo': assignedTo != null ? {'name': assignedTo} : null,
+      'resolvedAt': resolvedAt != null ? Timestamp.fromDate(resolvedAt!) : null,
+      'description': description,
+      'evidenceUrl': mediaUrl,
+    };
+  }
+
+  static String _statusToString(IncidentStatus status) {
+    switch (status) {
+      case IncidentStatus.pending:
+        return 'pending';
+      case IncidentStatus.inProgress:
+        return 'inProgress';
+      case IncidentStatus.resolved:
+        return 'resolved';
     }
   }
 }
