@@ -2,15 +2,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/student_home_screen.dart';
 import 'screens/admin_home_screen.dart';
 import 'screens/support_home_screen.dart';
+import 'services/auth_service.dart';
 import 'utils/colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const LabIncidentsApp());
 }
 
@@ -62,14 +66,52 @@ class AuthWrapper extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(
+                color: AppColors.primaryBlue,
+              ),
             ),
           );
         }
         
-        if (snapshot.hasData) {
-          // Determinar tipo de usuario y redirigir
-          return const StudentHomeScreen();
+        if (snapshot.hasData && snapshot.data != null) {
+          // Usuario autenticado, determinar rol y redirigir
+          return FutureBuilder<String>(
+            future: AuthService().getUserRole(snapshot.data!.uid),
+            builder: (context, roleSnapshot) {
+              if (roleSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primaryBlue,
+                    ),
+                  ),
+                );
+              }
+              
+              if (roleSnapshot.hasError) {
+                return const Scaffold(
+                  body: Center(
+                    child: Text(
+                      'Error al cargar el perfil de usuario',
+                      style: TextStyle(color: AppColors.textDark),
+                    ),
+                  ),
+                );
+              }
+              
+              final role = roleSnapshot.data ?? 'student';
+              
+              switch (role) {
+                case 'admin':
+                  return const AdminHomeScreen();
+                case 'support':
+                  return const SupportHomeScreen();
+                case 'student':
+                default:
+                  return const StudentHomeScreen();
+              }
+            },
+          );
         }
         
         return const LoginScreen();

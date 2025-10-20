@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.flutter_lab_support_incidents"
+    namespace = "com.upt.flutter_lab_support_incidents"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -25,7 +25,7 @@ android {
         applicationId = "com.upt.flutter_lab_support_incidents"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 21  // Requerido para Firebase
+        minSdk = flutter.minSdkVersion  // Requerido para Firebase
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

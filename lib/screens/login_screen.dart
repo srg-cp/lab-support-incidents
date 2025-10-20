@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
+import '../widgets/debug_info.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -15,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
   bool _isLoading = false;
   bool _isStudentLogin = true;
 
@@ -22,46 +24,40 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final userCredential = await _authService.signInWithGoogle();
       
-      if (googleUser == null) {
+      if (userCredential == null) {
         setState(() => _isLoading = false);
         return;
       }
 
-      // Verificar dominio institucional
-      if (!googleUser.email.endsWith('@virtual.upt.pe')) {
-        await GoogleSignIn().signOut();
-        if (mounted) {
-          CustomModal.show(
-            context,
-            type: ModalType.danger,
-            title: 'Acceso Denegado',
-            message: 'Debes usar tu correo institucional @virtual.upt.pe',
-          );
-        }
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      await FirebaseAuth.instance.signInWithCredential(credential);
+      // El AuthService ya maneja la creación del usuario en Firestore
+      // La navegación se manejará automáticamente por el AuthWrapper
+      
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'No se pudo iniciar sesión. Inténtalo de nuevo.';
+        
+        // Personalizar mensaje según el tipo de error
+        if (e.toString().contains('@virtual.upt.pe')) {
+          errorMessage = 'Debes usar tu correo institucional @virtual.upt.pe';
+        } else if (e.toString().contains('network')) {
+          errorMessage = 'Error de conexión. Verifica tu internet.';
+        } else if (e.toString().contains('cancelled')) {
+          errorMessage = 'Inicio de sesión cancelado.';
+        }
+        
         CustomModal.show(
           context,
           type: ModalType.danger,
-          title: 'Error',
-          message: 'No se pudo iniciar sesión. Inténtalo de nuevo.',
+          title: 'Error de Autenticación',
+          message: errorMessage,
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -71,21 +67,33 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+      await _authService.signInWithEmailPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'Credenciales incorrectas. Verifica tu usuario y contraseña.';
+        
+        if (e.toString().contains('user-not-found')) {
+          errorMessage = 'Usuario no encontrado.';
+        } else if (e.toString().contains('wrong-password')) {
+          errorMessage = 'Contraseña incorrecta.';
+        } else if (e.toString().contains('network')) {
+          errorMessage = 'Error de conexión. Verifica tu internet.';
+        }
+        
         CustomModal.show(
           context,
           type: ModalType.danger,
-          title: 'Error',
-          message: 'Credenciales incorrectas. Verifica tu usuario y contraseña.',
+          title: 'Error de Autenticación',
+          message: errorMessage,
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -284,10 +292,73 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ],
+                
+                // Widget de debug solo en modo desarrollo
+                if (kDebugMode) ...[
+                  const SizedBox(height: 32),
+                  _buildDebugInfo(),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => Dialog(
+                          child: Container(
+                            constraints: const BoxConstraints(maxHeight: 600),
+                            child: const DebugInfoWidget(),
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('Diagnóstico Google Sign In'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildDebugInfo() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.lightGray,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primaryBlue),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Debug Info',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryBlue,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Modo: ${kDebugMode ? "Debug" : "Release"}\n'
+            'Estado: ${_isLoading ? "Cargando..." : "Listo"}\n'
+            'Tipo: ${_isStudentLogin ? "Estudiante" : "Admin/Soporte"}',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              color: AppColors.textDark,
+            ),
+          ),
+        ],
       ),
     );
   }
