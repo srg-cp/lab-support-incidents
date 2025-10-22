@@ -451,8 +451,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         CustomModal.show(
           context,
           type: ModalType.success,
-          title: 'Usuario Creado',
-          message: 'El usuario $name ha sido creado exitosamente.',
+          title: 'Usuario Pendiente Creado',
+          message: 'El usuario $name ha sido creado como usuario pendiente.\n\nPodrá activar su cuenta en el primer login con las credenciales proporcionadas.',
         );
       }
     } catch (e) {

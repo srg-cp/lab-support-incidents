@@ -137,18 +137,70 @@ class AuthService {
 
   // Sign in con email y contraseña (para admin/soporte)
   Future<UserCredential> signInWithEmailPassword(String email, String password) async {
+    print('🔐 Iniciando login para: $email');
+    
     try {
+      // PASO 1: Intentar login normal en Firebase Auth
+      print('📝 PASO 1: Intentando login en Firebase Auth...');
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
       
-      // Actualizar último login
+      print('✅ ÉXITO: Usuario encontrado en Firebase Auth');
       await _updateLastLogin(userCredential.user!.uid);
-      
       return userCredential;
-    } catch (e) {
-      rethrow;
+      
+    } on FirebaseAuthException catch (e) {
+      print('❌ Firebase Auth falló: ${e.code}');
+      
+      // PASO 2: Si no existe en Firebase Auth, buscar en pending_users
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        print('📝 PASO 2: Usuario no existe en Firebase Auth, buscando en usuarios pendientes...');
+        
+        final pendingQuery = await _firestore
+            .collection('pending_users')
+            .where('email', isEqualTo: email)
+            .where('password', isEqualTo: password)
+            .get();
+        
+        if (pendingQuery.docs.isNotEmpty) {
+          print('✅ ENCONTRADO: Usuario pendiente existe');
+          print('📝 PASO 3: Activando usuario pendiente...');
+          
+          // PASO 3: Activar usuario pendiente (crear en Firebase Auth)
+          await _activatePendingUser(email, password);
+          
+          print('📝 PASO 4: Intentando login nuevamente...');
+          // PASO 4: Intentar login nuevamente después de activar
+          final userCredential = await _auth.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+          
+          await _updateLastLogin(userCredential.user!.uid);
+          print('✅ ÉXITO TOTAL: Usuario activado y logueado');
+          return userCredential;
+          
+        } else {
+          print('❌ NO ENCONTRADO: Usuario no existe en ningún lado');
+          throw Exception('Credenciales incorrectas o usuario no encontrado');
+        }
+      }
+      
+      // Para otros errores de Firebase Auth
+      switch (e.code) {
+        case 'wrong-password':
+          throw Exception('Contraseña incorrecta');
+        case 'invalid-email':
+          throw Exception('Email inválido');
+        case 'user-disabled':
+          throw Exception('Usuario deshabilitado');
+        case 'too-many-requests':
+          throw Exception('Demasiados intentos fallidos. Inténtalo más tarde');
+        default:
+          throw Exception('Error de autenticación: ${e.message}');
+      }
     }
   }
 
@@ -284,6 +336,131 @@ class AuthService {
     }
   }
 
+  // Activar usuario pendiente cuando hace login por primera vez
+  Future<void> _activatePendingUser(String email, String password) async {
+    try {
+      print('🔄 Activando usuario pendiente: $email');
+      
+      // Buscar usuario pendiente
+      final pendingQuery = await _firestore
+          .collection('pending_users')
+          .where('email', isEqualTo: email)
+          .where('password', isEqualTo: password)
+          .get();
+      
+      if (pendingQuery.docs.isEmpty) {
+        throw Exception('No se encontró usuario pendiente con estas credenciales');
+      }
+      
+      final pendingData = pendingQuery.docs.first.data();
+      final tempUid = pendingQuery.docs.first.id;
+      
+      print('📋 Activando usuario: ${pendingData['email']} - ${pendingData['name']}');
+      
+      // Crear usuario en Firebase Auth
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      if (userCredential.user == null) {
+        throw Exception('Error al crear usuario en Firebase Auth');
+      }
+      
+      final realUid = userCredential.user!.uid;
+      print('✅ Usuario creado en Firebase Auth con UID: $realUid');
+      
+      // Crear documento final en users collection
+      final finalUserData = {
+        'uid': realUid,
+        'email': email,
+        'name': pendingData['name'],
+        'role': pendingData['role'],
+        'photoURL': userCredential.user!.photoURL,
+        'createdAt': pendingData['createdAt'],
+        'activatedAt': FieldValue.serverTimestamp(),
+        'lastLogin': FieldValue.serverTimestamp(),
+      };
+      
+      await _firestore.collection('users').doc(realUid).set(finalUserData);
+      print('✅ Documento de usuario creado en Firestore');
+      
+      // Eliminar usuario pendiente
+      await _firestore.collection('pending_users').doc(tempUid).delete();
+      print('✅ Usuario pendiente eliminado');
+      
+      // Cerrar sesión inmediatamente para que el login normal pueda proceder
+      await _auth.signOut();
+      
+      print('✅ Usuario activado exitosamente');
+      
+    } catch (e) {
+      print('❌ Error al activar usuario pendiente: $e');
+      
+      // Si el usuario ya existe en Firebase Auth, intentar mover los datos
+      if (e.toString().contains('email-already-in-use')) {
+        print('🔄 Usuario ya existe en Firebase Auth, moviendo datos...');
+        
+        try {
+          // Buscar usuario pendiente nuevamente
+          final pendingQuery = await _firestore
+              .collection('pending_users')
+              .where('email', isEqualTo: email)
+              .where('password', isEqualTo: password)
+              .get();
+          
+          if (pendingQuery.docs.isNotEmpty) {
+            final pendingData = pendingQuery.docs.first.data();
+            final tempUid = pendingQuery.docs.first.id;
+            
+            // Hacer login temporal para obtener el UID real
+            final userCredential = await _auth.signInWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+            
+            final realUid = userCredential.user!.uid;
+            
+            // Verificar si ya existe documento en users
+            final existingUserDoc = await _firestore.collection('users').doc(realUid).get();
+            
+            if (!existingUserDoc.exists) {
+              // Crear documento en users collection
+              final finalUserData = {
+                'uid': realUid,
+                'email': email,
+                'name': pendingData['name'],
+                'role': pendingData['role'],
+                'photoURL': userCredential.user!.photoURL,
+                'createdAt': pendingData['createdAt'],
+                'activatedAt': FieldValue.serverTimestamp(),
+                'lastLogin': FieldValue.serverTimestamp(),
+              };
+              
+              await _firestore.collection('users').doc(realUid).set(finalUserData);
+              print('✅ Documento de usuario creado en Firestore');
+            }
+            
+            // Eliminar usuario pendiente
+            await _firestore.collection('pending_users').doc(tempUid).delete();
+            print('✅ Usuario pendiente eliminado');
+            
+            // Cerrar sesión para que el login normal pueda proceder
+            await _auth.signOut();
+            
+            print('✅ Usuario activado exitosamente (ya existía en Auth)');
+          }
+          
+        } catch (moveError) {
+          print('❌ Error al mover datos del usuario: $moveError');
+          throw Exception('Error al activar usuario: $moveError');
+        }
+      } else {
+        throw Exception('Error al activar usuario pendiente: $e');
+      }
+    }
+  }
+
   // Obtener rol del usuario
   Future<String> getUserRole(String uid) async {
     print('🔍 Obteniendo rol para UID: $uid');
@@ -371,17 +548,19 @@ class AuthService {
 
   // IMPORTANTE: Solo se pueden crear usuarios con roles 'admin' o 'support'
   // Los estudiantes se registran automáticamente con Google usando @virtual.upt.pe
-  Future<UserCredential> createUserWithEmailPassword(
+  // NUEVA IMPLEMENTACIÓN: Crear usuarios pendientes que se activan en el primer login
+  Future<String> createUserWithEmailPassword(
     String email, 
     String password, 
     String name, 
     String role
   ) async {
     try {
-      print('🚀 Iniciando creación de usuario con email y contraseña');
+      print('🚀 Iniciando creación de usuario pendiente');
       print('📧 Email: $email');
       print('👤 Nombre: $name');
       print('🔑 Rol: $role');
+      print('👨‍💼 Administrador actual: ${_auth.currentUser?.email}');
       
       // Validación: No permitir crear estudiantes manualmente
       if (role == 'student') {
@@ -393,55 +572,48 @@ class AuthService {
         throw Exception('Rol inválido. Solo se permiten roles: admin, support');
       }
       
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      // Verificar que el email no esté ya en uso
+      final existingUser = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .get();
       
-      if (userCredential.user == null) {
-        throw Exception('Error: No se pudo crear el usuario en Firebase Auth');
+      if (existingUser.docs.isNotEmpty) {
+        throw Exception('Ya existe un usuario activo con este email');
       }
       
-      print('✅ Usuario creado en Firebase Auth con UID: ${userCredential.user!.uid}');
+      // Verificar que no exista ya un usuario pendiente con este email
+      final existingPendingUser = await _firestore
+          .collection('pending_users')
+          .where('email', isEqualTo: email)
+          .get();
       
-      // Crear documento en Firestore directamente (sin updateDisplayName que causa problemas)
-      try {
-        await _createUserDocumentDirectly(userCredential.user!, name, role);
-        print('✅ Documento de Firestore creado exitosamente');
-        
-        // IMPORTANTE: Cerrar sesión del usuario recién creado para evitar conflictos
-        // El usuario debe hacer login manualmente después de ser creado
-        await _auth.signOut();
-        print('🚪 Usuario desconectado después de creación exitosa');
-        
-        return userCredential;
-      } catch (firestoreError) {
-        print('❌ Error al crear documento en Firestore: $firestoreError');
-        
-        // Si falla la creación del documento, eliminar el usuario de Auth también
-        try {
-          await userCredential.user!.delete();
-          print('🗑️ Usuario eliminado de Auth debido a error en Firestore');
-        } catch (deleteError) {
-          print('⚠️ No se pudo eliminar usuario de Auth: $deleteError');
-        }
-        
-        throw Exception('Error al crear el documento del usuario en Firestore: $firestoreError');
+      if (existingPendingUser.docs.isNotEmpty) {
+        throw Exception('Ya existe un usuario pendiente con este email');
       }
-    } on FirebaseAuthException catch (e) {
-      print('❌ Error de Firebase Auth: ${e.code} - ${e.message}');
-      switch (e.code) {
-        case 'email-already-in-use':
-          throw Exception('El email ya está en uso');
-        case 'invalid-email':
-          throw Exception('Email inválido');
-        case 'weak-password':
-          throw Exception('La contraseña es muy débil');
-        case 'operation-not-allowed':
-          throw Exception('Operación no permitida');
-        default:
-          throw Exception('Error de autenticación: ${e.message}');
-      }
+      
+      // Crear usuario pendiente en Firestore
+      final pendingUserData = {
+        'email': email,
+        'password': password, // En producción, esto debería estar hasheado
+        'name': name,
+        'role': role,
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': _auth.currentUser?.uid,
+        'status': 'pending',
+      };
+      
+      final docRef = await _firestore.collection('pending_users').add(pendingUserData);
+      
+      print('✅ Usuario pendiente creado exitosamente');
+      print('📄 ID del documento: ${docRef.id}');
+      print('💡 El usuario podrá activar su cuenta en el primer login');
+      print('🔐 Credenciales: $email / $password');
+      
+      // La sesión del administrador se mantiene intacta
+      print('👨‍💼 Sesión del administrador preservada: ${_auth.currentUser?.email}');
+      
+      return docRef.id;
     } catch (e) {
       print('❌ Error general en createUserWithEmailPassword: $e');
       rethrow;
@@ -467,6 +639,19 @@ class AuthService {
         .collection('users')
         .where('role', whereIn: ['admin', 'support'])
         .snapshots();
+  }
+
+  // Obtener usuarios pendientes (solo para admin)
+  Stream<QuerySnapshot> getPendingUsers() {
+    return _firestore
+        .collection('pending_users')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  // Eliminar usuario pendiente (solo para admin)
+  Future<void> deletePendingUser(String pendingUserId) async {
+    await _firestore.collection('pending_users').doc(pendingUserId).delete();
   }
 
   // Actualizar rol de usuario (solo para admin)
