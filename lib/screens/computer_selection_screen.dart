@@ -22,6 +22,10 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    final isLandscape = screenSize.width > screenSize.height;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text('Laboratorio ${widget.labName}'),
@@ -68,21 +72,21 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
           Expanded(
             child: InteractiveViewer(
               transformationController: _transformationController,
-              minScale: 0.5,
-              maxScale: 3.0,
-              boundaryMargin: const EdgeInsets.all(100),
+              minScale: 0.3,
+              maxScale: 4.0,
+              boundaryMargin: EdgeInsets.all(isTablet ? 150 : 80),
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.all(40),
+                  padding: EdgeInsets.all(isTablet ? 60 : 20),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Computadora del docente (arriba, centrada)
-                      _buildTeacherComputer(),
-                      const SizedBox(height: 40),
+                      _buildTeacherComputer(screenSize, isTablet),
+                      SizedBox(height: isTablet ? 50 : 30),
                       
-                      // Computadoras de estudiantes (4 filas x 5 columnas)
-                      ..._buildStudentRows(),
+                      // Computadoras de estudiantes (layout responsive)
+                      ..._buildStudentRows(screenSize, isTablet, isLandscape),
                     ],
                   ),
                 ),
@@ -127,7 +131,11 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
     );
   }
 
-  Widget _buildTeacherComputer() {
+  Widget _buildTeacherComputer(Size screenSize, bool isTablet) {
+    final computerSize = _getComputerSize(screenSize, isTablet, isTeacher: true);
+    final iconSize = computerSize * 0.4;
+    final fontSize = computerSize * 0.14;
+    
     return GestureDetector(
       onTap: () {
         CustomModal.show(
@@ -138,33 +146,33 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
         );
       },
       child: Container(
-        width: 70,
-        height: 70,
+        width: computerSize,
+        height: computerSize,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [AppColors.warning, AppColors.darkGold],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(computerSize * 0.17),
           boxShadow: [
             BoxShadow(
               color: AppColors.warning.withOpacity(0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              blurRadius: computerSize * 0.11,
+              offset: Offset(0, computerSize * 0.06),
             ),
           ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.school, color: AppColors.white, size: 28),
-            const SizedBox(height: 4),
+            Icon(Icons.school, color: AppColors.white, size: iconSize),
+            SizedBox(height: computerSize * 0.06),
             Text(
               'Docente',
               style: TextStyle(
                 color: AppColors.white,
-                fontSize: 10,
+                fontSize: fontSize,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -174,38 +182,62 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
     );
   }
 
-  List<Widget> _buildStudentRows() {
+  List<Widget> _buildStudentRows(Size screenSize, bool isTablet, bool isLandscape) {
     List<Widget> rows = [];
     
-    for (int row = 0; row < 4; row++) {
+    // Determinar el layout según el tamaño de pantalla
+    int computersPerRow;
+    int totalRows;
+    
+    if (isTablet) {
+      computersPerRow = isLandscape ? 6 : 5;
+      totalRows = isLandscape ? 4 : 4;
+    } else {
+      computersPerRow = isLandscape ? 5 : 4;
+      totalRows = isLandscape ? 4 : 5;
+    }
+    
+    final spacing = _getSpacing(screenSize, isTablet);
+    
+    for (int row = 0; row < totalRows; row++) {
       List<Widget> computersInRow = [];
       
-      for (int col = 0; col < 5; col++) {
-        int computerIndex = row * 5 + col + 1;
-        computersInRow.add(_buildStudentComputer(computerIndex));
+      for (int col = 0; col < computersPerRow; col++) {
+        int computerIndex = row * computersPerRow + col + 1;
         
-        if (col < 4) {
-          computersInRow.add(const SizedBox(width: 16));
+        // Solo agregar si no excede el total de computadoras
+        if (computerIndex <= totalStudentComputers) {
+          computersInRow.add(_buildStudentComputer(computerIndex, screenSize, isTablet));
+          
+          if (col < computersPerRow - 1 && computerIndex < totalStudentComputers) {
+            computersInRow.add(SizedBox(width: spacing));
+          }
         }
       }
       
-      rows.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: computersInRow,
-        ),
-      );
-      
-      if (row < 3) {
-        rows.add(const SizedBox(height: 16));
+      if (computersInRow.isNotEmpty) {
+        rows.add(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: computersInRow,
+          ),
+        );
+        
+        if (row < totalRows - 1) {
+          rows.add(SizedBox(height: spacing));
+        }
       }
     }
     
     return rows;
   }
 
-  Widget _buildStudentComputer(int index) {
+  Widget _buildStudentComputer(int index, Size screenSize, bool isTablet) {
     final isSelected = _selectedComputers.contains(index);
+    final computerSize = _getComputerSize(screenSize, isTablet);
+    final iconSize = computerSize * 0.4;
+    final fontSize = computerSize * 0.17;
+    final borderWidth = computerSize * 0.05;
     
     return GestureDetector(
       onTap: () {
@@ -219,8 +251,8 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 60,
-        height: 60,
+        width: computerSize,
+        height: computerSize,
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
@@ -233,16 +265,16 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(computerSize * 0.17),
           border: isSelected
-              ? Border.all(color: AppColors.white, width: 3)
+              ? Border.all(color: AppColors.white, width: borderWidth)
               : null,
           boxShadow: [
             BoxShadow(
               color: (isSelected ? AppColors.accentGold : AppColors.lightBlue)
                   .withOpacity(0.3),
-              blurRadius: isSelected ? 10 : 6,
-              offset: const Offset(0, 4),
+              blurRadius: isSelected ? computerSize * 0.17 : computerSize * 0.1,
+              offset: Offset(0, computerSize * 0.07),
             ),
           ],
         ),
@@ -252,14 +284,14 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
             Icon(
               isSelected ? Icons.check_circle : Icons.computer,
               color: AppColors.white,
-              size: 24,
+              size: iconSize,
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: computerSize * 0.03),
             Text(
               'PC $index',
               style: TextStyle(
                 color: AppColors.white,
-                fontSize: 10,
+                fontSize: fontSize,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -267,6 +299,27 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
         ),
       ),
     );
+  }
+
+  // Métodos auxiliares para cálculos responsive
+  double _getComputerSize(Size screenSize, bool isTablet, {bool isTeacher = false}) {
+    double baseSize;
+    
+    if (isTablet) {
+      baseSize = isTeacher ? 90.0 : 75.0;
+    } else {
+      baseSize = isTeacher ? 70.0 : 55.0;
+    }
+    
+    // Ajustar según el ancho de pantalla
+    final screenFactor = (screenSize.width / 400).clamp(0.7, 1.5);
+    return baseSize * screenFactor;
+  }
+
+  double _getSpacing(Size screenSize, bool isTablet) {
+    double baseSpacing = isTablet ? 20.0 : 12.0;
+    final screenFactor = (screenSize.width / 400).clamp(0.7, 1.3);
+    return baseSpacing * screenFactor;
   }
 
   @override

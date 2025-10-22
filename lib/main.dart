@@ -12,9 +12,16 @@ import 'utils/colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    print('Error inicializando Firebase: $e');
+    // Continuar con la app aunque Firebase falle
+  }
+  
   runApp(const LabIncidentsApp());
 }
 
@@ -89,14 +96,9 @@ class AuthWrapper extends StatelessWidget {
               }
               
               if (roleSnapshot.hasError) {
-                return const Scaffold(
-                  body: Center(
-                    child: Text(
-                      'Error al cargar el perfil de usuario',
-                      style: TextStyle(color: AppColors.textDark),
-                    ),
-                  ),
-                );
+                print('Error al cargar rol de usuario: ${roleSnapshot.error}');
+                // En caso de error, redirigir a login para reautenticar
+                return const LoginScreen();
               }
               
               final role = roleSnapshot.data ?? 'student';

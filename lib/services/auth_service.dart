@@ -12,8 +12,8 @@ class AuthService {
     ],
     // Configuración del Client ID para web (necesario para Flutter Web)
     clientId: '63833424445-grc16ame64r65bgmscndh8adbguqo5hc.apps.googleusercontent.com',
-    // Agregar configuración específica para depuración
-    signInOption: SignInOption.standard,
+    // // Agregar configuración específica para depuración
+    // signInOption: SignInOption.standard,
   );
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -26,89 +26,45 @@ class AuthService {
   // Sign in con Google (solo para estudiantes @virtual.upt.pe)
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      if (kDebugMode) {
-        print('🔐 Iniciando proceso de autenticación con Google...');
-        print('🔐 Verificando disponibilidad de Google Play Services...');
-      }
-      
       // Verificar si Google Sign In está disponible
       final bool isAvailable = await _googleSignIn.isSignedIn();
-      if (kDebugMode) {
-        print('🔐 Google Sign In disponible: $isAvailable');
-      }
       
       // Cerrar sesión previa si existe
       await _googleSignIn.signOut();
       await _auth.signOut();
       
-      if (kDebugMode) {
-        print('🔐 Sesiones previas cerradas');
-        print('🔐 Iniciando Google Sign In...');
-      }
-      
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       
       if (googleUser == null) {
-        if (kDebugMode) {
-          print('🔐 Usuario canceló el login de Google');
-        }
         throw Exception('cancelled');
-      }
-
-      if (kDebugMode) {
-        print('🔐 Usuario seleccionado: ${googleUser.email}');
-        print('🔐 ID del usuario: ${googleUser.id}');
-        print('🔐 Nombre del usuario: ${googleUser.displayName}');
       }
 
       // Verificar que el email no sea nulo
       if (googleUser.email.isEmpty) {
-        if (kDebugMode) {
-          print('🔐 Error: Email del usuario está vacío');
-        }
         await _googleSignIn.signOut();
         throw Exception('No se pudo obtener el email del usuario');
       }
 
       // Verificar dominio institucional
       if (!googleUser.email.endsWith('@virtual.upt.pe')) {
-        if (kDebugMode) {
-          print('🔐 Dominio no válido: ${googleUser.email}');
-        }
         await _googleSignIn.signOut();
         throw Exception('Debes usar tu correo institucional @virtual.upt.pe');
       }
 
-      if (kDebugMode) {
-        print('🔐 Obteniendo credenciales de Google...');
-      }
-
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       
-      if (kDebugMode) {
-        print('🔐 Access Token presente: ${googleAuth.accessToken != null}');
-        print('🔐 ID Token presente: ${googleAuth.idToken != null}');
-        if (googleAuth.accessToken != null) {
-          print('🔐 Access Token (primeros 20 chars): ${googleAuth.accessToken!.substring(0, 20)}...');
-        }
-        if (googleAuth.idToken != null) {
-          print('🔐 ID Token (primeros 20 chars): ${googleAuth.idToken!.substring(0, 20)}...');
-        }
-      }
-      
-      // Verificar que tenemos los tokens necesarios
-      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
-        if (kDebugMode) {
-          print('🔐 Error: Tokens de Google nulos');
-          print('🔐 Access Token: ${googleAuth.accessToken}');
-          print('🔐 ID Token: ${googleAuth.idToken}');
-        }
+      // Verificar que tenemos al menos el accessToken
+      if (googleAuth.accessToken == null) {
         await _googleSignIn.signOut();
-        throw Exception('Error al obtener credenciales de Google. Tokens nulos.');
+        throw Exception('Error al obtener credenciales de Google. Access Token nulo.');
       }
       
-      if (kDebugMode) {
-        print('🔐 Creando credenciales de Firebase...');
+      // En web, el idToken puede ser null, pero podemos continuar con accessToken
+      if (googleAuth.idToken == null && kIsWeb) {
+        // Continuar con Access Token únicamente
+      } else if (googleAuth.idToken == null) {
+        await _googleSignIn.signOut();
+        throw Exception('Error al obtener ID Token de Google.');
       }
       
       final credential = GoogleAuthProvider.credential(
@@ -116,29 +72,14 @@ class AuthService {
         idToken: googleAuth.idToken,
       );
 
-      if (kDebugMode) {
-        print('🔐 Autenticando con Firebase...');
-      }
-
       final userCredential = await _auth.signInWithCredential(credential);
       
       if (userCredential.user == null) {
-        if (kDebugMode) {
-          print('🔐 Error: Usuario de Firebase es nulo');
-        }
         throw Exception('Error al autenticar con Firebase');
-      }
-      
-      if (kDebugMode) {
-        print('🔐 Creando/actualizando usuario en Firestore...');
       }
       
       // Crear o actualizar documento de usuario
       await _createOrUpdateUser(userCredential.user!, 'student');
-      
-      if (kDebugMode) {
-        print('🔐 ¡Autenticación exitosa!');
-      }
       
       return userCredential;
     } on FirebaseAuthException catch (e) {
@@ -162,11 +103,6 @@ class AuthService {
           throw Exception('Error de autenticación: ${e.message}');
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 Error en signInWithGoogle: $e');
-        print('🔐 Tipo de error: ${e.runtimeType}');
-      }
-      
       await _googleSignIn.signOut();
       
       // Manejar errores específicos de Google Sign In

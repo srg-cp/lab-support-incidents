@@ -1,10 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Permisos necesarios para Firebase y Google Sign In -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
     <application
-        android:label="flutter_lab_support_incidents"
+        android:label="flutter_application_testlab"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

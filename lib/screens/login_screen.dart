@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
-import '../widgets/debug_info.dart';
 import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -293,72 +292,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
                 
-                // Widget de debug solo en modo desarrollo
-                if (kDebugMode) ...[
-                  const SizedBox(height: 32),
-                  _buildDebugInfo(),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => Dialog(
-                          child: Container(
-                            constraints: const BoxConstraints(maxHeight: 600),
-                            child: const DebugInfoWidget(),
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text('Diagnóstico Google Sign In'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 48),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDebugInfo() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.lightGray,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.primaryBlue),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Debug Info',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryBlue,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Modo: ${kDebugMode ? "Debug" : "Release"}\n'
-            'Estado: ${_isLoading ? "Cargando..." : "Listo"}\n'
-            'Tipo: ${_isStudentLogin ? "Estudiante" : "Admin/Soporte"}',
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 10,
-              color: AppColors.textDark,
-            ),
-          ),
-        ],
       ),
     );
   }

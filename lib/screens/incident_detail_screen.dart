@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
+import '../services/incident_service.dart';
 
 class IncidentDetailScreen extends StatefulWidget {
   final String labName;
