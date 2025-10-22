@@ -40,21 +40,31 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Gestión de Usuarios',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+                Flexible(
+                  child: const Text(
+                    'Gestión de Usuarios',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: _showCreateUserDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Nuevo Usuario'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryBlue,
-                    foregroundColor: AppColors.white,
+                const SizedBox(width: 8),
+                Flexible(
+                  child: ElevatedButton.icon(
+                    onPressed: _showCreateUserDialog,
+                    icon: const Icon(Icons.add, size: 20),
+                    label: const Text(
+                      'Nuevo Usuario',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
                   ),
                 ),
               ],

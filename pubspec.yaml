@@ -54,10 +54,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
-  # Assets (descomenta si tienes el logo de la UPT)
-  # assets:
-  #   - assets/images/
-  #   - assets/icons/
+  # Assets - Incluye el icono personalizado y otros recursos
+  assets:
+    - assets/
+    - assets/images/
+    - assets/icons/
   
   # Fuentes personalizadas (opcional)
   # fonts:
