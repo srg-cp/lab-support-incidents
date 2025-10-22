@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/incident_card.dart';
+import 'user_management_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({Key? key}) : super(key: key);
@@ -18,6 +19,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     const AdminDashboard(),
     const AdminIncidentsView(),
     const AdminLabManagement(),
+    const UserManagementScreen(),
   ];
 
   @override
@@ -44,6 +46,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             _selectedIndex = index;
           });
         },
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
@@ -56,6 +59,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.computer),
             label: 'Laboratorios',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Usuarios',
           ),
         ],
       ),

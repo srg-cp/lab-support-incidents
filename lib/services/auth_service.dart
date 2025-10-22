@@ -78,8 +78,18 @@ class AuthService {
         throw Exception('Error al autenticar con Firebase');
       }
       
+      print('✅ Usuario autenticado con Google, UID: ${userCredential.user!.uid}');
+      print('📧 Email: ${userCredential.user!.email}');
+      
       // Crear o actualizar documento de usuario
-      await _createOrUpdateUser(userCredential.user!, 'student');
+      try {
+        await _createOrUpdateUser(userCredential.user!, 'student');
+        print('✅ Documento de usuario procesado correctamente');
+      } catch (e) {
+        print('❌ Error al crear/actualizar documento de usuario: $e');
+        // No hacer rethrow aquí para no interrumpir el login, pero sí loggear el error
+        // El usuario podrá autenticarse pero tendrá problemas con los permisos
+      }
       
       return userCredential;
     } on FirebaseAuthException catch (e) {
@@ -141,18 +151,20 @@ class AuthService {
     }
   }
 
-  // Crear o actualizar usuario en Firestore
-  Future<void> _createOrUpdateUser(User user, String role) async {
+
+
+  // Asegurar que existe el documento del usuario
+  Future<void> _ensureUserDocument(User user) async {
     final userDoc = _firestore.collection('users').doc(user.uid);
     final docSnapshot = await userDoc.get();
 
     if (!docSnapshot.exists) {
-      // Crear nuevo usuario
+      // Crear nuevo usuario con rol por defecto
       await userDoc.set({
         'uid': user.uid,
         'email': user.email,
         'name': user.displayName ?? user.email?.split('@')[0] ?? 'Usuario',
-        'role': role,
+        'role': 'student', // Rol por defecto
         'photoURL': user.photoURL,
         'createdAt': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
@@ -163,17 +175,324 @@ class AuthService {
     }
   }
 
+  // Crear o actualizar usuario en Firestore
+  Future<void> _createOrUpdateUser(User user, String role) async {
+    try {
+      print('🔄 Iniciando _createOrUpdateUser para UID: ${user.uid}');
+      print('📧 Email: ${user.email}');
+      print('👤 Rol: $role');
+      
+      final userDoc = _firestore.collection('users').doc(user.uid);
+      final docSnapshot = await userDoc.get();
+
+      if (!docSnapshot.exists) {
+        print('📝 Creando nuevo documento de usuario...');
+        
+        final userData = {
+          'uid': user.uid,
+          'email': user.email,
+          'name': user.displayName ?? user.email?.split('@')[0] ?? 'Usuario',
+          'role': role,
+          'photoURL': user.photoURL,
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLogin': FieldValue.serverTimestamp(),
+        };
+        
+        print('📋 Datos a guardar: $userData');
+        
+        await userDoc.set(userData);
+        
+        print('✅ Documento de usuario creado exitosamente');
+        
+        // Verificar que el documento se creó correctamente
+        final verificationDoc = await userDoc.get();
+        if (verificationDoc.exists) {
+          print('✅ Verificación exitosa: El documento existe en Firestore');
+          print('📄 Datos guardados: ${verificationDoc.data()}');
+        } else {
+          print('❌ Error: El documento no se encontró después de crearlo');
+          throw Exception('Error al verificar la creación del documento de usuario');
+        }
+      } else {
+        print('📄 Usuario ya existe, actualizando último login...');
+        // Actualizar último login
+        await _updateLastLogin(user.uid);
+        print('✅ Último login actualizado');
+      }
+    } catch (e) {
+      print('❌ Error en _createOrUpdateUser: $e');
+      print('🔍 Stack trace: ${StackTrace.current}');
+      rethrow;
+    }
+  }
+
   // Actualizar último login
   Future<void> _updateLastLogin(String uid) async {
-    await _firestore.collection('users').doc(uid).update({
-      'lastLogin': FieldValue.serverTimestamp(),
-    });
+    try {
+      final userDoc = _firestore.collection('users').doc(uid);
+      final docSnapshot = await userDoc.get();
+      
+      if (docSnapshot.exists) {
+        await userDoc.update({
+          'lastLogin': FieldValue.serverTimestamp(),
+        });
+        print('✅ Último login actualizado para UID: $uid');
+      } else {
+        print('⚠️ Documento no existe para UID: $uid, no se puede actualizar último login');
+        // El documento debería existir en este punto, pero si no existe,
+        // no intentamos crearlo aquí para evitar conflictos
+      }
+    } catch (e) {
+      print('❌ Error al actualizar último login para UID $uid: $e');
+      // No hacer rethrow para no interrumpir el flujo de autenticación
+    }
   }
 
   // Obtener rol del usuario
   Future<String> getUserRole(String uid) async {
+    print('🔍 Obteniendo rol para UID: $uid');
+    
     final doc = await _firestore.collection('users').doc(uid).get();
-    return doc.data()?['role'] ?? 'student';
+    
+    if (doc.exists) {
+      final userData = doc.data();
+      final role = userData?['role'] ?? 'student';
+      
+      print('📄 Documento encontrado');
+      print('📋 Datos del usuario: $userData');
+      print('👤 Rol obtenido: $role');
+      
+      return role;
+    }
+    
+    print('❌ No se encontró documento para UID: $uid');
+    
+    // Intentar reparar el documento faltante si el usuario está autenticado
+    final currentAuthUser = _auth.currentUser;
+    if (currentAuthUser != null && currentAuthUser.uid == uid) {
+      print('🔧 Intentando reparar documento faltante...');
+      try {
+        await _createOrUpdateUser(currentAuthUser, 'student');
+        print('✅ Documento reparado exitosamente');
+        return 'student';
+      } catch (e) {
+        print('❌ Error al reparar documento: $e');
+      }
+    }
+    
+    return 'student';
+  }
+
+  // Verificar y reparar documento de usuario faltante
+  Future<bool> verifyAndRepairUserDocument() async {
+    final user = currentUser;
+    if (user == null) {
+      print('❌ No hay usuario autenticado');
+      return false;
+    }
+
+    try {
+      print('🔍 Verificando documento para usuario: ${user.uid}');
+      
+      final userDoc = _firestore.collection('users').doc(user.uid);
+      final docSnapshot = await userDoc.get();
+
+      if (!docSnapshot.exists) {
+        print('🔧 Documento faltante, creando...');
+        
+        // Determinar el rol basado en el email
+        String role = 'student';
+        if (user.email != null) {
+          if (user.email!.endsWith('@virtual.upt.pe')) {
+            role = 'student';
+          } else {
+            // Para usuarios admin/soporte creados manualmente
+            role = 'admin';
+          }
+        }
+        
+        await _createOrUpdateUser(user, role);
+        print('✅ Documento creado exitosamente');
+        return true;
+      } else {
+        print('✅ Documento ya existe');
+        return true;
+      }
+    } catch (e) {
+      print('❌ Error al verificar/reparar documento: $e');
+      return false;
+    }
+  }
+
+  // Crear usuario con email y contraseña (solo para admin)
+  Future<UserCredential> createUserWithEmailPassword(
+    String email, 
+    String password, 
+    String name, 
+    String role
+  ) async {
+    try {
+      print('🚀 Iniciando creación de usuario con email y contraseña');
+      print('📧 Email: $email');
+      print('👤 Nombre: $name');
+      print('🔑 Rol: $role');
+      
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      if (userCredential.user == null) {
+        throw Exception('Error: No se pudo crear el usuario en Firebase Auth');
+      }
+      
+      print('✅ Usuario creado en Firebase Auth con UID: ${userCredential.user!.uid}');
+      
+      // Actualizar el nombre del usuario
+      await userCredential.user!.updateDisplayName(name);
+      print('✅ Nombre de usuario actualizado');
+      
+      // Crear documento en Firestore con el rol especificado
+      await _createOrUpdateUser(userCredential.user!, role);
+      print('✅ Documento de Firestore creado/actualizado');
+      
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      print('❌ Error de Firebase Auth: ${e.code} - ${e.message}');
+      switch (e.code) {
+        case 'email-already-in-use':
+          throw Exception('El email ya está en uso');
+        case 'invalid-email':
+          throw Exception('Email inválido');
+        case 'weak-password':
+          throw Exception('La contraseña es muy débil');
+        case 'operation-not-allowed':
+          throw Exception('Operación no permitida');
+        default:
+          throw Exception('Error de autenticación: ${e.message}');
+      }
+    } catch (e) {
+      print('❌ Error general en createUserWithEmailPassword: $e');
+      rethrow;
+    }
+  }
+
+  // Obtener todos los usuarios (solo para admin)
+  Stream<QuerySnapshot> getAllUsers() {
+    return _firestore.collection('users').snapshots();
+  }
+
+  // Actualizar rol de usuario (solo para admin)
+  Future<void> updateUserRole(String uid, String newRole) async {
+    await _firestore.collection('users').doc(uid).update({
+      'role': newRole,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Eliminar usuario (solo para admin)
+  Future<void> deleteUser(String uid) async {
+    // Eliminar documento de Firestore
+    await _firestore.collection('users').doc(uid).delete();
+    
+    // Nota: Para eliminar completamente el usuario de Firebase Auth,
+    // necesitarías usar Firebase Admin SDK desde Cloud Functions
+  }
+
+  // Verificar si el usuario actual es admin
+  Future<bool> isCurrentUserAdmin() async {
+    final user = currentUser;
+    if (user == null) return false;
+    
+    final role = await getUserRole(user.uid);
+    return role == 'admin';
+  }
+
+  // Verificar integridad de todos los usuarios (solo para admin)
+  Future<Map<String, dynamic>> verifyAllUsersIntegrity() async {
+    try {
+      print('🔍 Iniciando verificación de integridad de usuarios...');
+      
+      // Obtener todos los documentos de usuarios en Firestore
+      final firestoreUsers = await _firestore.collection('users').get();
+      final firestoreUids = firestoreUsers.docs.map((doc) => doc.id).toSet();
+      
+      print('📄 Usuarios en Firestore: ${firestoreUids.length}');
+      
+      // Nota: No podemos obtener todos los usuarios de Firebase Auth sin Admin SDK
+      // Este método se enfoca en verificar que los documentos existentes estén completos
+      
+      int validUsers = 0;
+      int repairedUsers = 0;
+      List<String> errors = [];
+      
+      for (final doc in firestoreUsers.docs) {
+        try {
+          final userData = doc.data();
+          final uid = doc.id;
+          
+          // Verificar campos requeridos
+          final requiredFields = ['uid', 'email', 'name', 'role', 'createdAt'];
+          bool needsRepair = false;
+          
+          for (final field in requiredFields) {
+            if (!userData.containsKey(field) || userData[field] == null) {
+              needsRepair = true;
+              break;
+            }
+          }
+          
+          if (needsRepair) {
+            print('🔧 Reparando documento para UID: $uid');
+            
+            // Intentar reparar con datos básicos
+            final updates = <String, dynamic>{};
+            
+            if (!userData.containsKey('uid') || userData['uid'] == null) {
+              updates['uid'] = uid;
+            }
+            if (!userData.containsKey('role') || userData['role'] == null) {
+              updates['role'] = 'student';
+            }
+            if (!userData.containsKey('createdAt') || userData['createdAt'] == null) {
+              updates['createdAt'] = FieldValue.serverTimestamp();
+            }
+            if (!userData.containsKey('lastLogin') || userData['lastLogin'] == null) {
+              updates['lastLogin'] = FieldValue.serverTimestamp();
+            }
+            
+            if (updates.isNotEmpty) {
+              await _firestore.collection('users').doc(uid).update(updates);
+              repairedUsers++;
+              print('✅ Documento reparado para UID: $uid');
+            }
+          } else {
+            validUsers++;
+          }
+        } catch (e) {
+          errors.add('Error procesando UID ${doc.id}: $e');
+          print('❌ Error procesando UID ${doc.id}: $e');
+        }
+      }
+      
+      final result = {
+        'totalUsers': firestoreUids.length,
+        'validUsers': validUsers,
+        'repairedUsers': repairedUsers,
+        'errors': errors,
+        'success': errors.isEmpty,
+      };
+      
+      print('📊 Resultado de verificación: $result');
+      return result;
+      
+    } catch (e) {
+      print('❌ Error en verificación de integridad: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
   }
 
   // Sign out

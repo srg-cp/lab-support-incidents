@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
 import '../services/auth_service.dart';
+import '../utils/setup_admin.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -30,11 +31,28 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // El AuthService ya maneja la creación del usuario en Firestore
-      // La navegación se manejará automáticamente por el AuthWrapper
+      // Login exitoso - verificar que el usuario esté autenticado
+      if (userCredential.user != null && mounted) {
+        print('✅ Login con Google exitoso para: ${userCredential.user!.email}');
+        
+        // Verificar y reparar documento de usuario si es necesario
+        try {
+          await _authService.verifyAndRepairUserDocument();
+          print('✅ Documento de usuario verificado/reparado');
+        } catch (e) {
+          print('⚠️ Error al verificar documento de usuario: $e');
+          // No interrumpir el login por este error
+        }
+        
+        // La navegación se manejará automáticamente por el AuthWrapper
+        // No mostrar ningún modal de error aquí
+        setState(() => _isLoading = false);
+        return;
+      }
       
     } catch (e) {
-      if (mounted) {
+      // Solo mostrar modal de error si realmente hay un error y no es cancelación
+      if (mounted && !e.toString().contains('cancelled')) {
         String errorMessage = 'No se pudo iniciar sesión. Inténtalo de nuevo.';
         
         // Personalizar mensaje según el tipo de error
@@ -42,8 +60,6 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage = 'Debes usar tu correo institucional @virtual.upt.pe';
         } else if (e.toString().contains('network')) {
           errorMessage = 'Error de conexión. Verifica tu internet.';
-        } else if (e.toString().contains('cancelled')) {
-          errorMessage = 'Inicio de sesión cancelado.';
         }
         
         CustomModal.show(
@@ -52,6 +68,9 @@ class _LoginScreenState extends State<LoginScreen> {
           title: 'Error de Autenticación',
           message: errorMessage,
         );
+      } else if (e.toString().contains('cancelled')) {
+        // Login cancelado por el usuario - no mostrar error
+        print('ℹ️ Login cancelado por el usuario');
       }
     } finally {
       if (mounted) {
@@ -66,10 +85,29 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     
     try {
-      await _authService.signInWithEmailPassword(
+      final userCredential = await _authService.signInWithEmailPassword(
         _emailController.text.trim(),
         _passwordController.text,
       );
+      
+      // Login exitoso - verificar que el usuario esté autenticado
+      if (userCredential.user != null && mounted) {
+        print('✅ Login con email exitoso para: ${userCredential.user!.email}');
+        
+        // Verificar y reparar documento de usuario si es necesario
+        try {
+          await _authService.verifyAndRepairUserDocument();
+          print('✅ Documento de usuario verificado/reparado');
+        } catch (e) {
+          print('⚠️ Error al verificar documento de usuario: $e');
+          // No interrumpir el login por este error
+        }
+        
+        // La navegación se manejará automáticamente por el AuthWrapper
+        setState(() => _isLoading = false);
+        return;
+      }
+      
     } catch (e) {
       if (mounted) {
         String errorMessage = 'Credenciales incorrectas. Verifica tu usuario y contraseña.';
@@ -92,6 +130,81 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _setupFirstAdmin() async {
+    final emailController = TextEditingController();
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Configurar Primer Administrador'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Ingresa el email del administrador:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email del administrador',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
+            child: const Text('Configurar'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true && emailController.text.trim().isNotEmpty) {
+      if (!mounted) return;
+      
+      setState(() => _isLoading = true);
+      
+      try {
+        await SetupAdmin.setupFirstAdmin(emailController.text.trim());
+        
+        if (mounted) {
+          // Usar ScaffoldMessenger en lugar de CustomModal para evitar problemas de contexto
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Administrador configurado exitosamente'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }
@@ -292,6 +405,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
                 
+                // Botón temporal para configurar primer admin (solo en desarrollo)
+                if (kDebugMode) ...[
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  TextButton.icon(
+                    onPressed: _isLoading ? null : _setupFirstAdmin,
+                    icon: const Icon(Icons.admin_panel_settings),
+                    label: const Text('Configurar Primer Admin'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textLight,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

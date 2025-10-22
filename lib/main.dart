@@ -104,19 +104,27 @@ class AuthWrapper extends StatelessWidget {
               
               if (roleSnapshot.hasError) {
                 print('Error al cargar rol de usuario: ${roleSnapshot.error}');
-                // En caso de error, redirigir a login para reautenticar
-                return const LoginScreen();
+                // En caso de error, usar rol por defecto en lugar de redirigir a login
+                print('🔄 Usando rol por defecto: student');
+                return const StudentHomeScreen();
               }
               
               final role = roleSnapshot.data ?? 'student';
               
+              print('🏠 AuthWrapper - Usuario autenticado: ${snapshot.data!.email}');
+              print('👤 AuthWrapper - Rol obtenido: $role');
+              print('🚀 AuthWrapper - Navegando a pantalla según rol...');
+              
               switch (role) {
                 case 'admin':
+                  print('📱 Navegando a AdminHomeScreen');
                   return const AdminHomeScreen();
                 case 'support':
+                  print('📱 Navegando a SupportHomeScreen');
                   return const SupportHomeScreen();
                 case 'student':
                 default:
+                  print('📱 Navegando a StudentHomeScreen');
                   return const StudentHomeScreen();
               }
             },
