@@ -24,6 +24,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   File? _selectedMedia;
   bool _isSubmitting = false;
+  final IncidentService _incidentService = IncidentService();
 
   final List<Map<String, dynamic>> incidentTypes = [
     {'label': 'Pantallazo azul', 'icon': Icons.desktop_windows},
@@ -116,21 +117,42 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
 
     setState(() => _isSubmitting = true);
 
-    // Simular envío a Firebase
-    await Future.delayed(const Duration(seconds: 2));
-
-    setState(() => _isSubmitting = false);
-
-    if (mounted) {
-      CustomModal.show(
-        context,
-        type: ModalType.success,
-        title: 'Incidente Reportado',
-        message: 'Incidente reportado exitosamente. Nuestro personal de soporte llegará en breve para solucionar el problema.',
-        onConfirm: () {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        },
+    try {
+      // Crear el incidente en Firebase
+      await _incidentService.createIncident(
+        labName: widget.labName,
+        computerNumbers: widget.selectedComputers,
+        incidentType: _selectedIncidentType!,
+        description: _descriptionController.text.trim().isEmpty 
+            ? null 
+            : _descriptionController.text.trim(),
+        evidenceFile: _selectedMedia,
       );
+
+      setState(() => _isSubmitting = false);
+
+      if (mounted) {
+        CustomModal.show(
+          context,
+          type: ModalType.success,
+          title: 'Incidente Reportado',
+          message: 'Incidente reportado exitosamente. Nuestro personal de soporte llegará en breve para solucionar el problema.',
+          onConfirm: () {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+        );
+      }
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+
+      if (mounted) {
+        CustomModal.show(
+          context,
+          type: ModalType.danger,
+          title: 'Error al Reportar',
+          message: 'No se pudo reportar el incidente. Por favor, verifica tu conexión e intenta nuevamente.\n\nError: ${e.toString()}',
+        );
+      }
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/colors.dart';
 import 'lab_selection_screen.dart';
+import 'user_reports_screen.dart';
 
 class StudentHomeScreen extends StatelessWidget {
   const StudentHomeScreen({Key? key}) : super(key: key);
@@ -67,7 +68,12 @@ class StudentHomeScreen extends StatelessWidget {
               subtitle: 'Ver el estado de tus incidentes reportados',
               color: AppColors.lightBlue,
               onTap: () {
-                // Navegar a historial
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const UserReportsScreen(),
+                  ),
+                );
               },
             ),
           ],

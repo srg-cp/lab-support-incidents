@@ -82,6 +82,32 @@ class IncidentProvider with ChangeNotifier {
     }
   }
 
+  // Obtener incidentes del usuario actual
+  void getUserIncidents(String uid) {
+    _incidentService.getUserIncidents(uid).listen(
+      (snapshot) {
+        _incidents = snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return Incident.fromFirestore(doc.id, data);
+        }).toList();
+        
+        // Ordenar por fecha de reporte (más reciente primero)
+        _incidents.sort((a, b) {
+          if (a.reportedAt == null && b.reportedAt == null) return 0;
+          if (a.reportedAt == null) return 1;
+          if (b.reportedAt == null) return -1;
+          return b.reportedAt!.compareTo(a.reportedAt!);
+        });
+        
+        notifyListeners();
+      },
+      onError: (error) {
+        _error = error.toString();
+        notifyListeners();
+      },
+    );
+  }
+
   // Resolver incidente
   Future<bool> resolveIncident({
     required String incidentId,

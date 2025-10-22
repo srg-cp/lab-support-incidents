@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
+import '../services/incident_service.dart';
 import 'incident_detail_screen.dart';
+
+enum ComputerStatus { available, hasIncident, disabled }
 
 class ComputerSelectionScreen extends StatefulWidget {
   final String labName;
@@ -15,10 +18,40 @@ class ComputerSelectionScreen extends StatefulWidget {
 class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
   final Set<int> _selectedComputers = {};
   final TransformationController _transformationController = TransformationController();
+  final IncidentService _incidentService = IncidentService();
+  Map<int, String> _computersWithIncidents = {};
+  bool _isLoading = true;
   
   // Configuración inicial: 20 computadoras de estudiantes + 1 de docente
   static const int totalStudentComputers = 20;
   static const int teacherComputerIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadComputerStatuses();
+  }
+
+  Future<void> _loadComputerStatuses() async {
+    try {
+      final computersWithIncidents = await _incidentService.getComputersWithActiveIncidents(widget.labName);
+      setState(() {
+        _computersWithIncidents = computersWithIncidents;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  ComputerStatus _getComputerStatus(int computerNumber) {
+    if (_computersWithIncidents.containsKey(computerNumber)) {
+      return ComputerStatus.hasIncident;
+    }
+    return ComputerStatus.available;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +78,9 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
             ),
         ],
       ),
-      body: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
         children: [
           // Instrucciones
           Container(
@@ -91,6 +126,51 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
                   ),
                 ),
               ),
+            ),
+          ),
+          
+          // Leyenda de estados
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              border: Border(
+                top: BorderSide(color: AppColors.lightGray, width: 1),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Leyenda:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildLegendItem(
+                      color: AppColors.lightBlue,
+                      label: 'Disponible',
+                      icon: Icons.computer,
+                    ),
+                    _buildLegendItem(
+                      color: AppColors.danger,
+                      label: 'En Incidente',
+                      icon: Icons.error,
+                    ),
+                    _buildLegendItem(
+                      color: AppColors.accentGold,
+                      label: 'Seleccionado',
+                      icon: Icons.check_circle,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           
@@ -234,13 +314,35 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
 
   Widget _buildStudentComputer(int index, Size screenSize, bool isTablet) {
     final isSelected = _selectedComputers.contains(index);
+    final computerStatus = _getComputerStatus(index);
     final computerSize = _getComputerSize(screenSize, isTablet);
     final iconSize = computerSize * 0.4;
     final fontSize = computerSize * 0.17;
     final borderWidth = computerSize * 0.05;
     
+    // Determinar colores según el estado
+    List<Color> gradientColors;
+    Color shadowColor;
+    IconData iconData;
+    bool isInteractable = true;
+
+    if (computerStatus == ComputerStatus.hasIncident) {
+      gradientColors = [AppColors.danger, AppColors.danger.withOpacity(0.8)];
+      shadowColor = AppColors.danger;
+      iconData = Icons.error;
+      isInteractable = false;
+    } else if (isSelected) {
+      gradientColors = [AppColors.accentGold, AppColors.darkGold];
+      shadowColor = AppColors.accentGold;
+      iconData = Icons.check_circle;
+    } else {
+      gradientColors = [AppColors.lightBlue, AppColors.skyBlue];
+      shadowColor = AppColors.lightBlue;
+      iconData = Icons.computer;
+    }
+    
     return GestureDetector(
-      onTap: () {
+      onTap: isInteractable ? () {
         setState(() {
           if (isSelected) {
             _selectedComputers.remove(index);
@@ -248,31 +350,33 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
             _selectedComputers.add(index);
           }
         });
+      } : () {
+        // Mostrar mensaje para computadoras con incidentes
+        CustomModal.show(
+          context,
+          type: ModalType.warning,
+          title: 'Computadora No Disponible',
+          message: 'La PC $index ya tiene un incidente activo. '
+              'Espera a que se resuelva antes de reportar un nuevo problema.',
+        );
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: computerSize,
         height: computerSize,
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: [AppColors.accentGold, AppColors.darkGold],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : LinearGradient(
-                  colors: [AppColors.lightBlue, AppColors.skyBlue],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(computerSize * 0.17),
           border: isSelected
               ? Border.all(color: AppColors.white, width: borderWidth)
               : null,
           boxShadow: [
             BoxShadow(
-              color: (isSelected ? AppColors.accentGold : AppColors.lightBlue)
-                  .withOpacity(0.3),
+              color: shadowColor.withOpacity(0.3),
               blurRadius: isSelected ? computerSize * 0.17 : computerSize * 0.1,
               offset: Offset(0, computerSize * 0.07),
             ),
@@ -282,7 +386,7 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isSelected ? Icons.check_circle : Icons.computer,
+              iconData,
               color: AppColors.white,
               size: iconSize,
             ),
@@ -298,6 +402,44 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildLegendItem({
+    required Color color,
+    required String label,
+    required IconData icon,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [color, color.withOpacity(0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(
+            icon,
+            color: AppColors.white,
+            size: 12,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 

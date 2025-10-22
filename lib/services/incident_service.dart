@@ -8,6 +8,33 @@ class IncidentService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final StorageService _storageService = StorageService();
 
+  // Verificar computadoras con incidentes activos
+  Future<Map<int, String>> getComputersWithActiveIncidents(String labName) async {
+    try {
+      final query = await _firestore
+          .collection('incidents')
+          .where('labName', isEqualTo: labName)
+          .where('status', whereIn: ['pending', 'inProgress'])
+          .get();
+
+      Map<int, String> computersWithIncidents = {};
+      
+      for (var doc in query.docs) {
+        final data = doc.data();
+        final computerNumbers = List<int>.from(data['computerNumbers'] ?? []);
+        final status = data['status'] as String;
+        
+        for (int computerNumber in computerNumbers) {
+          computersWithIncidents[computerNumber] = status;
+        }
+      }
+      
+      return computersWithIncidents;
+    } catch (e) {
+      return {};
+    }
+  }
+
   // Crear nuevo incidente
   Future<String> createIncident({
     required String labName,
@@ -19,6 +46,17 @@ class IncidentService {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Usuario no autenticado');
+
+      // Verificar si alguna computadora ya tiene un incidente activo
+      final computersWithIncidents = await getComputersWithActiveIncidents(labName);
+      final conflictingComputers = computerNumbers.where((pc) => 
+          computersWithIncidents.containsKey(pc)).toList();
+      
+      if (conflictingComputers.isNotEmpty) {
+        final pcList = conflictingComputers.map((pc) => 'PC $pc').join(', ');
+        throw Exception('Las siguientes computadoras ya tienen incidentes activos: $pcList. '
+            'Espera a que se resuelvan antes de reportar nuevos incidentes.');
+      }
 
       // Convertir imagen a base64 si existe
       String? evidenceBase64;
@@ -89,7 +127,6 @@ class IncidentService {
     return _firestore
         .collection('incidents')
         .where('reportedBy.uid', isEqualTo: uid)
-        .orderBy('reportedAt', descending: true)
         .snapshots();
   }
 
