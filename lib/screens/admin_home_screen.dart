@@ -4,6 +4,7 @@ import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/incident_card.dart';
 import 'user_management_screen.dart';
+import 'students_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({Key? key}) : super(key: key);
@@ -20,6 +21,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     const AdminIncidentsView(),
     const AdminLabManagement(),
     const UserManagementScreen(),
+    const StudentsScreen(),
   ];
 
   @override
@@ -63,6 +65,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.people),
             label: 'Usuarios',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.school),
+            label: 'Estudiantes',
           ),
         ],
       ),

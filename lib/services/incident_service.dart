@@ -130,6 +130,11 @@ class IncidentService {
         .snapshots();
   }
 
+  // Alias para mayor claridad en la pantalla de estudiantes
+  Stream<QuerySnapshot> getIncidentsByUser(String uid) {
+    return getUserIncidents(uid);
+  }
+
   // Tomar incidente (asignar a soporte)
   Future<void> takeIncident(String incidentId) async {
     try {

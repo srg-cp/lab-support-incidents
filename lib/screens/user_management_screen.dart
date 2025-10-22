@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/colors.dart';
+import '../utils/date_formatter.dart';
 import '../services/auth_service.dart';
 import '../widgets/custom_modal.dart';
 import '../widgets/loading_overlay.dart';
@@ -59,10 +60,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ],
             ),
           ),
-          // Lista de usuarios
+          // Lista de usuarios (solo admin y support, no estudiantes)
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _authService.getAllUsers(),
+              stream: _authService.getNonStudentUsers(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return ErrorView(
@@ -186,17 +187,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 PopupMenuButton<String>(
                   onSelected: (value) => _handleUserAction(value, userId, userData),
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit_role',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 18),
-                          SizedBox(width: 8),
-                          Text('Cambiar Rol'),
-                        ],
+                    // Solo mostrar "Cambiar Rol" si no es el usuario actual
+                    if (userId != _authService.currentUser?.uid)
+                      const PopupMenuItem(
+                        value: 'edit_role',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 18),
+                            SizedBox(width: 8),
+                            Text('Cambiar Rol'),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (role != 'admin') // No permitir eliminar admins
+                    if (role != 'admin' && userId != _authService.currentUser?.uid) // No permitir eliminar admins ni al usuario actual
                       const PopupMenuItem(
                         value: 'delete',
                         child: Row(
@@ -217,14 +220,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 Icon(Icons.access_time, size: 16, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Text(
-                  'Creado: ${createdAt != null ? _formatDate(createdAt) : 'N/A'}',
+                  'Creado: ${createdAt != null ? DateFormatter.formatDate(createdAt) : 'N/A'}',
                   style: const TextStyle(fontSize: 12, color: AppColors.textLight),
                 ),
                 const SizedBox(width: 16),
                 Icon(Icons.login, size: 16, color: AppColors.textLight),
                 const SizedBox(width: 4),
                 Text(
-                  'Último acceso: ${lastLogin != null ? _formatDate(lastLogin) : 'Nunca'}',
+                  'Último acceso: ${lastLogin != null ? DateFormatter.formatDate(lastLogin) : 'Nunca'}',
                   style: const TextStyle(fontSize: 12, color: AppColors.textLight),
                 ),
               ],
@@ -233,10 +236,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 
   void _handleUserAction(String action, String userId, Map<String, dynamic> userData) {
@@ -320,6 +319,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Rol',
                   border: OutlineInputBorder(),
+                  helperText: 'Los estudiantes se registran automáticamente con Google',
                 ),
                 items: const [
                   DropdownMenuItem(value: 'support', child: Text('Soporte')),
@@ -357,6 +357,28 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   void _showEditRoleDialog(String userId, String currentRole) {
+    // Si el usuario actual es estudiante, no permitir cambio de rol
+    if (currentRole == 'student') {
+      CustomModal.show(
+        context,
+        type: ModalType.warning,
+        title: 'Acción no permitida',
+        message: 'No se puede cambiar el rol de un estudiante. Los estudiantes se registran automáticamente con Google.',
+      );
+      return;
+    }
+
+    // Si es el usuario actual, no permitir cambio de rol
+    if (userId == _authService.currentUser?.uid) {
+      CustomModal.show(
+        context,
+        type: ModalType.warning,
+        title: 'Acción no permitida',
+        message: 'No puedes cambiar tu propio rol. Solicita a otro administrador que realice este cambio.',
+      );
+      return;
+    }
+
     String selectedRole = currentRole;
 
     showDialog(
@@ -368,9 +390,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           decoration: const InputDecoration(
             labelText: 'Nuevo rol',
             border: OutlineInputBorder(),
+            helperText: 'Solo se pueden asignar roles de administración',
           ),
           items: const [
-            DropdownMenuItem(value: 'student', child: Text('Estudiante')),
             DropdownMenuItem(value: 'support', child: Text('Soporte')),
             DropdownMenuItem(value: 'admin', child: Text('Administrador')),
           ],

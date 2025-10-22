@@ -35,23 +35,22 @@ class _LoginScreenState extends State<LoginScreen> {
       if (userCredential.user != null && mounted) {
         print('✅ Login con Google exitoso para: ${userCredential.user!.email}');
         
-        // Verificar y reparar documento de usuario si es necesario
-        try {
-          await _authService.verifyAndRepairUserDocument();
+        // Verificar y reparar documento de usuario de forma asíncrona
+        // No esperar a que termine para evitar bloquear la navegación
+        _authService.verifyAndRepairUserDocument().then((_) {
           print('✅ Documento de usuario verificado/reparado');
-        } catch (e) {
+        }).catchError((e) {
           print('⚠️ Error al verificar documento de usuario: $e');
-          // No interrumpir el login por este error
-        }
+          // No mostrar error al usuario, solo loggear
+        });
         
         // La navegación se manejará automáticamente por el AuthWrapper
-        // No mostrar ningún modal de error aquí
         setState(() => _isLoading = false);
         return;
       }
       
     } catch (e) {
-      // Solo mostrar modal de error si realmente hay un error y no es cancelación
+      // Solo mostrar modal de error si realmente hay un error de autenticación
       if (mounted && !e.toString().contains('cancelled')) {
         String errorMessage = 'No se pudo iniciar sesión. Inténtalo de nuevo.';
         
@@ -60,8 +59,12 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage = 'Debes usar tu correo institucional @virtual.upt.pe';
         } else if (e.toString().contains('network')) {
           errorMessage = 'Error de conexión. Verifica tu internet.';
+        } else if (e.toString().contains('Error al autenticar con Firebase')) {
+          errorMessage = 'Error de autenticación. Inténtalo de nuevo.';
         }
         
+        // Solo mostrar el modal si es un error real de autenticación
+        print('❌ Error de autenticación: $e');
         CustomModal.show(
           context,
           type: ModalType.danger,
@@ -94,14 +97,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (userCredential.user != null && mounted) {
         print('✅ Login con email exitoso para: ${userCredential.user!.email}');
         
-        // Verificar y reparar documento de usuario si es necesario
-        try {
-          await _authService.verifyAndRepairUserDocument();
+        // Verificar y reparar documento de usuario de forma asíncrona
+        // No esperar a que termine para evitar bloquear la navegación
+        _authService.verifyAndRepairUserDocument().then((_) {
           print('✅ Documento de usuario verificado/reparado');
-        } catch (e) {
+        }).catchError((e) {
           print('⚠️ Error al verificar documento de usuario: $e');
-          // No interrumpir el login por este error
-        }
+          // No mostrar error al usuario, solo loggear
+        });
         
         // La navegación se manejará automáticamente por el AuthWrapper
         setState(() => _isLoading = false);
@@ -118,8 +121,13 @@ class _LoginScreenState extends State<LoginScreen> {
           errorMessage = 'Contraseña incorrecta.';
         } else if (e.toString().contains('network')) {
           errorMessage = 'Error de conexión. Verifica tu internet.';
+        } else if (e.toString().contains('invalid-email')) {
+          errorMessage = 'Email inválido.';
+        } else if (e.toString().contains('too-many-requests')) {
+          errorMessage = 'Demasiados intentos fallidos. Inténtalo más tarde.';
         }
         
+        print('❌ Error de autenticación con email: $e');
         CustomModal.show(
           context,
           type: ModalType.danger,
