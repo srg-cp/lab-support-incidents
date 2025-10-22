@@ -35,14 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (userCredential.user != null && mounted) {
         print('✅ Login con Google exitoso para: ${userCredential.user!.email}');
         
-        // Verificar y reparar documento de usuario de forma asíncrona
-        // No esperar a que termine para evitar bloquear la navegación
-        _authService.verifyAndRepairUserDocument().then((_) {
-          print('✅ Documento de usuario verificado/reparado');
-        }).catchError((e) {
-          print('⚠️ Error al verificar documento de usuario: $e');
-          // No mostrar error al usuario, solo loggear
-        });
+        // NO verificar/reparar automáticamente - los usuarios deben existir previamente
+        // Solo los estudiantes con @virtual.upt.pe se crean automáticamente via Google OAuth
         
         // La navegación se manejará automáticamente por el AuthWrapper
         setState(() => _isLoading = false);

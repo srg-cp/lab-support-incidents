@@ -154,41 +154,52 @@ class AuthService {
 
 
 
-  // Asegurar que existe el documento del usuario
+  // ESTA FUNCIÓN NO DEBERÍA EXISTIR - ELIMINAR
+  // Los usuarios deben ser creados explícitamente, no automáticamente
   Future<void> _ensureUserDocument(User user) async {
-    final userDoc = _firestore.collection('users').doc(user.uid);
-    final docSnapshot = await userDoc.get();
+    // FUNCIÓN PROBLEMÁTICA - NO USAR
+    throw Exception('Esta función no debe ser utilizada. Los usuarios deben ser creados explícitamente.');
+  }
 
-    if (!docSnapshot.exists) {
-      // Determinar el rol basado en el email
-      String role = 'student';
-      if (user.email != null) {
-        if (user.email!.endsWith('@virtual.upt.pe')) {
-          role = 'student';
-        } else {
-          // Para usuarios con emails no institucionales, asumir que son admin/soporte
-          role = 'admin';
-        }
-      }
+  // Crear documento de usuario directamente (para creación manual)
+  Future<void> _createUserDocumentDirectly(User user, String name, String role) async {
+    try {
+      print('📝 Creando documento directamente para UID: ${user.uid}');
       
-      // Crear nuevo usuario con rol determinado
-      await userDoc.set({
+      final userDoc = _firestore.collection('users').doc(user.uid);
+      
+      final userData = {
         'uid': user.uid,
         'email': user.email,
-        'name': user.displayName ?? user.email?.split('@')[0] ?? 'Usuario',
+        'name': name, // Usar el nombre proporcionado directamente
         'role': role,
         'photoURL': user.photoURL,
         'createdAt': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
-      });
-    } else {
-      // Actualizar último login
-      await _updateLastLogin(user.uid);
+      };
+      
+      print('📋 Datos a guardar: $userData');
+      
+      await userDoc.set(userData);
+      
+      print('✅ Documento creado exitosamente');
+      
+      // Verificar que el documento se creó
+      final verificationDoc = await userDoc.get();
+      if (verificationDoc.exists) {
+        print('✅ Verificación exitosa: El documento existe en Firestore');
+        print('📄 Datos guardados: ${verificationDoc.data()}');
+      } else {
+        throw Exception('El documento no se pudo verificar después de crearlo');
+      }
+    } catch (e) {
+      print('❌ Error en _createUserDocumentDirectly: $e');
+      rethrow;
     }
   }
 
   // Crear o actualizar usuario en Firestore
-  Future<void> _createOrUpdateUser(User user, String role) async {
+  Future<void> _createOrUpdateUser(User user, String role, {bool throwOnError = false}) async {
     try {
       print('🔄 Iniciando _createOrUpdateUser para UID: ${user.uid}');
       print('📧 Email: ${user.email}');
@@ -241,7 +252,12 @@ class AuthService {
     } catch (e) {
       print('❌ Error en _createOrUpdateUser: $e');
       print('🔍 Stack trace: ${StackTrace.current}');
-      // No hacer rethrow para evitar interrumpir el flujo de autenticación
+      
+      if (throwOnError) {
+        // Para creación manual de usuarios, propagar el error
+        rethrow;
+      }
+      // Para autenticación automática (Google OAuth), no interrumpir el flujo
       // El usuario podrá autenticarse aunque haya problemas con el documento
     }
   }
@@ -316,7 +332,7 @@ class AuthService {
     throw Exception('Usuario no encontrado en la base de datos.');
   }
 
-  // Verificar y reparar documento de usuario faltante
+  // Verificar documento de usuario - NO CREAR AUTOMÁTICAMENTE
   Future<bool> verifyAndRepairUserDocument() async {
     final user = currentUser;
     if (user == null) {
@@ -331,28 +347,24 @@ class AuthService {
       final docSnapshot = await userDoc.get();
 
       if (!docSnapshot.exists) {
-        print('🔧 Documento faltante, creando...');
+        print('🚫 Documento faltante - NO SE CREARÁ AUTOMÁTICAMENTE');
         
-        // Determinar el rol basado en el email
-        String role = 'student';
-        if (user.email != null) {
-          if (user.email!.endsWith('@virtual.upt.pe')) {
-            role = 'student';
-          } else {
-            // Para usuarios admin/soporte creados manualmente
-            role = 'admin';
-          }
+        // SOLO permitir estudiantes con email institucional
+        if (user.email != null && user.email!.endsWith('@virtual.upt.pe')) {
+          print('🔧 Creando estudiante con email institucional...');
+          await _createOrUpdateUser(user, 'student');
+          print('✅ Documento de estudiante creado exitosamente');
+          return true;
+        } else {
+          print('🚫 Usuario no autorizado - debe ser creado por administrador');
+          return false;
         }
-        
-        await _createOrUpdateUser(user, role);
-        print('✅ Documento creado exitosamente');
-        return true;
       } else {
         print('✅ Documento ya existe');
         return true;
       }
     } catch (e) {
-      print('❌ Error al verificar/reparar documento: $e');
+      print('❌ Error al verificar documento: $e');
       return false;
     }
   }
@@ -392,15 +404,30 @@ class AuthService {
       
       print('✅ Usuario creado en Firebase Auth con UID: ${userCredential.user!.uid}');
       
-      // Actualizar el nombre del usuario
-      await userCredential.user!.updateDisplayName(name);
-      print('✅ Nombre de usuario actualizado');
-      
-      // Crear documento en Firestore con el rol especificado
-      await _createOrUpdateUser(userCredential.user!, role);
-      print('✅ Documento de Firestore creado/actualizado');
-      
-      return userCredential;
+      // Crear documento en Firestore directamente (sin updateDisplayName que causa problemas)
+      try {
+        await _createUserDocumentDirectly(userCredential.user!, name, role);
+        print('✅ Documento de Firestore creado exitosamente');
+        
+        // IMPORTANTE: Cerrar sesión del usuario recién creado para evitar conflictos
+        // El usuario debe hacer login manualmente después de ser creado
+        await _auth.signOut();
+        print('🚪 Usuario desconectado después de creación exitosa');
+        
+        return userCredential;
+      } catch (firestoreError) {
+        print('❌ Error al crear documento en Firestore: $firestoreError');
+        
+        // Si falla la creación del documento, eliminar el usuario de Auth también
+        try {
+          await userCredential.user!.delete();
+          print('🗑️ Usuario eliminado de Auth debido a error en Firestore');
+        } catch (deleteError) {
+          print('⚠️ No se pudo eliminar usuario de Auth: $deleteError');
+        }
+        
+        throw Exception('Error al crear el documento del usuario en Firestore: $firestoreError');
+      }
     } on FirebaseAuthException catch (e) {
       print('❌ Error de Firebase Auth: ${e.code} - ${e.message}');
       switch (e.code) {
@@ -522,18 +549,12 @@ class AuthService {
               updates['uid'] = uid;
             }
             if (!userData.containsKey('role') || userData['role'] == null) {
-              // NO asignar rol automáticamente - solo para emails institucionales
+              // NUNCA asignar rol automáticamente en reparación
               final email = userData['email'] as String?;
-              if (email != null && email.endsWith('@virtual.upt.pe')) {
-                // Solo estudiantes con email institucional
-                updates['role'] = 'student';
-                print('🎓 Asignando rol de estudiante a email institucional: $email');
-              } else {
-                // Para usuarios sin email institucional, NO asignar rol automáticamente
-                print('🚫 No se asignará rol automáticamente a email no institucional: $email');
-                // Saltar este documento - debe ser creado manualmente por admin
-                continue;
-              }
+              print('🚫 Documento sin rol encontrado para email: $email');
+              print('🚫 NO se asignará rol automáticamente - debe ser creado por administrador');
+              // Saltar este documento - debe ser creado manualmente por admin
+              continue;
             }
             if (!userData.containsKey('createdAt') || userData['createdAt'] == null) {
               updates['createdAt'] = FieldValue.serverTimestamp();

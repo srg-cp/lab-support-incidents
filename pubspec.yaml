@@ -11,19 +11,19 @@ dependencies:
     sdk: flutter
 
   # Firebase Core
-  firebase_core: ^2.24.2
+  firebase_core: ^2.27.0
   
   # Firebase Authentication
-  firebase_auth: ^4.15.3
+  firebase_auth: ^4.17.8
   
   # Google Sign In
-  google_sign_in: ^6.1.6
+  google_sign_in: ^6.2.1
   
   # Cloud Firestore (para almacenar incidentes)
-  cloud_firestore: ^4.13.6
+  cloud_firestore: ^4.15.8
   
   # Firebase Storage (para almacenar imágenes/videos)
-  firebase_storage: ^11.5.6
+  firebase_storage: ^11.6.9
   
   # Image Picker (para capturar fotos/videos)
   image_picker: ^1.0.7

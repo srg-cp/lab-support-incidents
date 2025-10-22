@@ -104,12 +104,77 @@ class AuthWrapper extends StatelessWidget {
               
               if (roleSnapshot.hasError) {
                 print('Error al cargar rol de usuario: ${roleSnapshot.error}');
-                // En caso de error, usar rol por defecto en lugar de redirigir a login
-                print('🔄 Usando rol por defecto: student');
-                return const StudentHomeScreen();
+                
+                // Verificar si es un error de usuario no autorizado o documento no encontrado
+                final errorMessage = roleSnapshot.error.toString();
+                if (errorMessage.contains('Usuario no autorizado') || 
+                    errorMessage.contains('Usuario no encontrado') ||
+                    errorMessage.contains('No se encontró documento')) {
+                  // Cerrar sesión para usuarios sin documento en Firestore
+                  print('🚫 Usuario sin documento en Firestore - cerrando sesión y redirigiendo al login');
+                  AuthService().signOut();
+                  return const LoginScreen();
+                } else {
+                  // Para otros errores, mostrar pantalla de error sin cerrar sesión
+                  print('⚠️ Error temporal al cargar rol - mostrando pantalla de error');
+                  return Scaffold(
+                    body: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error, size: 64, color: Colors.red),
+                          const SizedBox(height: 16),
+                          const Text('Error al cargar información del usuario'),
+                          const SizedBox(height: 8),
+                          Text('$errorMessage'),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              // Cerrar sesión y volver al login
+                              AuthService().signOut();
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                              );
+                            },
+                            child: const Text('Volver al Login'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
               }
               
-              final role = roleSnapshot.data ?? 'student';
+              final role = roleSnapshot.data;
+              
+              // Si no hay rol definido, mostrar error sin cerrar sesión
+              if (role == null || role.isEmpty) {
+                print('🚫 Rol nulo o vacío - mostrando error');
+                return Scaffold(
+                  body: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.warning, size: 64, color: Colors.orange),
+                        const SizedBox(height: 16),
+                        const Text('Usuario sin rol definido'),
+                        const SizedBox(height: 8),
+                        const Text('Contacta al administrador para asignar un rol'),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            AuthService().signOut();
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            );
+                          },
+                          child: const Text('Cerrar Sesión'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
               
               print('🏠 AuthWrapper - Usuario autenticado: ${snapshot.data!.email}');
               print('👤 AuthWrapper - Rol obtenido: $role');
@@ -123,9 +188,12 @@ class AuthWrapper extends StatelessWidget {
                   print('📱 Navegando a SupportHomeScreen');
                   return const SupportHomeScreen();
                 case 'student':
-                default:
                   print('📱 Navegando a StudentHomeScreen');
                   return const StudentHomeScreen();
+                default:
+                  print('🚫 Rol inválido: $role - cerrando sesión');
+                  AuthService().signOut();
+                  return const LoginScreen();
               }
             },
           );
