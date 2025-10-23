@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'dart:io';
 import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/custom_modal.dart';
 import '../widgets/image_viewer.dart';
+import '../providers/incident_provider.dart';
 
 class IncidentResolutionScreen extends StatefulWidget {
   final Incident incident;
@@ -89,18 +91,39 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
   Future<void> _takeIncident() async {
     setState(() => _isSubmitting = true);
     
-    // Simular asignación
-    await Future.delayed(const Duration(seconds: 1));
-    
-    setState(() => _isSubmitting = false);
-    
-    if (mounted) {
-      CustomModal.show(
-        context,
-        type: ModalType.success,
-        title: 'Incidente Tomado',
-        message: 'El incidente ha sido asignado a ti. Puedes proceder a resolverlo.',
-      );
+    try {
+      final provider = Provider.of<IncidentProvider>(context, listen: false);
+      final success = await provider.takeIncident(widget.incident.id);
+      
+      setState(() => _isSubmitting = false);
+      
+      if (mounted) {
+        if (success) {
+          CustomModal.show(
+            context,
+            type: ModalType.success,
+            title: 'Incidente Tomado',
+            message: 'El incidente ha sido asignado a ti. Puedes proceder a resolverlo.',
+          );
+        } else {
+          CustomModal.show(
+            context,
+            type: ModalType.warning,
+            title: 'Error',
+            message: provider.error ?? 'Error al tomar el incidente',
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      if (mounted) {
+        CustomModal.show(
+          context,
+          type: ModalType.danger,
+          title: 'Error',
+          message: 'Error inesperado: $e',
+        );
+      }
     }
   }
 
@@ -117,34 +140,86 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
 
     setState(() => _isSubmitting = true);
     
-    // Simular guardado en Firebase
-    await Future.delayed(const Duration(seconds: 2));
-    
-    setState(() => _isSubmitting = false);
-    
-    if (mounted) {
-      String message = '';
+    try {
+      final provider = Provider.of<IncidentProvider>(context, listen: false);
+      
+      String statusString = '';
       switch (newStatus) {
         case IncidentStatus.resolved:
-          message = 'El incidente ha sido marcado como resuelto exitosamente.';
+          statusString = 'resolved';
+          break;
+        case IncidentStatus.cancelled:
+          statusString = 'cancelled';
+          break;
+        case IncidentStatus.onHold:
+          statusString = 'onHold';
           break;
         case IncidentStatus.inProgress:
-          message = 'El estado del incidente ha sido actualizado.';
+          statusString = 'inProgress';
           break;
         case IncidentStatus.pending:
-          message = 'El incidente ha sido devuelto a estado pendiente.';
+          statusString = 'pending';
           break;
       }
       
-      CustomModal.show(
-        context,
-        type: ModalType.success,
-        title: 'Actualizado',
-        message: message,
-        onConfirm: () {
-          Navigator.of(context).pop();
-        },
+      final success = await provider.resolveIncident(
+        incidentId: widget.incident.id,
+        status: statusString,
+        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        resolutionFile: _resolutionMedia,
       );
+      
+      setState(() => _isSubmitting = false);
+      
+      if (mounted) {
+        if (success) {
+          String message = '';
+          switch (newStatus) {
+            case IncidentStatus.resolved:
+              message = 'El incidente ha sido marcado como resuelto exitosamente.';
+              break;
+            case IncidentStatus.cancelled:
+              message = 'El incidente ha sido cancelado.';
+              break;
+            case IncidentStatus.onHold:
+              message = 'El incidente ha sido puesto en espera.';
+              break;
+            case IncidentStatus.inProgress:
+              message = 'El estado del incidente ha sido actualizado.';
+              break;
+            case IncidentStatus.pending:
+              message = 'El incidente ha sido devuelto a estado pendiente.';
+              break;
+          }
+          
+          CustomModal.show(
+            context,
+            type: ModalType.success,
+            title: 'Actualizado',
+            message: message,
+            onConfirm: () {
+              Navigator.of(context).pop();
+            },
+          );
+        } else {
+          CustomModal.show(
+            context,
+            type: ModalType.warning,
+            title: 'Error',
+            message: provider.error ?? 'Error al actualizar el incidente',
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      if (mounted) {
+        CustomModal.show(
+          context,
+          type: ModalType.danger,
+          title: 'Error',
+          message: 'Error inesperado: $e',
+        );
+      }
     }
   }
 
@@ -468,25 +543,46 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                 const SizedBox(height: 24),
                 
                 // Botones de acción
-                Row(
+                Column(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _isSubmitting
-                            ? null
-                            : () => _resolveIncident(IncidentStatus.inProgress),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: AppColors.warning),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => _resolveIncident(IncidentStatus.onHold),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.orange),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: const Text(
+                              'En Espera',
+                              style: TextStyle(color: Colors.orange),
+                            ),
+                          ),
                         ),
-                        child: const Text(
-                          'En Espera',
-                          style: TextStyle(color: AppColors.warning),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _isSubmitting
+                                ? null
+                                : () => _resolveIncident(IncidentStatus.cancelled),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: const Text(
+                              'Cancelar',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
                       child: ElevatedButton(
                         onPressed: _isSubmitting
                             ? null
@@ -504,7 +600,7 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                                   color: AppColors.white,
                                 ),
                               )
-                            : const Text('Resuelto'),
+                            : const Text('Marcar como Resuelto'),
                       ),
                     ),
                   ],

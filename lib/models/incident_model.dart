@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/colors.dart';
 
-enum IncidentStatus { pending, inProgress, resolved }
+enum IncidentStatus { pending, inProgress, resolved, cancelled, onHold }
 
 class Incident {
   final String id;
@@ -43,6 +43,10 @@ class Incident {
         return 'En Progreso';
       case IncidentStatus.resolved:
         return 'Resuelto';
+      case IncidentStatus.cancelled:
+        return 'Cancelado';
+      case IncidentStatus.onHold:
+        return 'En Espera';
     }
   }
 
@@ -54,6 +58,10 @@ class Incident {
         return AppColors.lightBlue;
       case IncidentStatus.resolved:
         return AppColors.success;
+      case IncidentStatus.cancelled:
+        return Colors.red;
+      case IncidentStatus.onHold:
+        return Colors.orange;
     }
   }
 
@@ -99,6 +107,10 @@ class Incident {
         return IncidentStatus.inProgress;
       case 'resolved':
         return IncidentStatus.resolved;
+      case 'cancelled':
+        return IncidentStatus.cancelled;
+      case 'onHold':
+        return IncidentStatus.onHold;
       default:
         return IncidentStatus.pending;
     }
@@ -112,6 +124,10 @@ class Incident {
         return 'inProgress';
       case IncidentStatus.resolved:
         return 'resolved';
+      case IncidentStatus.cancelled:
+        return 'cancelled';
+      case IncidentStatus.onHold:
+        return 'onHold';
     }
   }
 }
@@ -144,6 +160,10 @@ extension IncidentFirestore on Incident {
         return IncidentStatus.inProgress;
       case 'resolved':
         return IncidentStatus.resolved;
+      case 'cancelled':
+        return IncidentStatus.cancelled;
+      case 'onHold':
+        return IncidentStatus.onHold;
       default:
         return IncidentStatus.pending;
     }
@@ -176,6 +196,10 @@ extension IncidentFirestore on Incident {
         return 'inProgress';
       case IncidentStatus.resolved:
         return 'resolved';
+      case IncidentStatus.cancelled:
+        return 'cancelled';
+      case IncidentStatus.onHold:
+        return 'onHold';
     }
   }
 }

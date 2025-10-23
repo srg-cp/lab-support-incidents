@@ -135,11 +135,32 @@ class IncidentService {
     return getUserIncidents(uid);
   }
 
+  // Verificar incidentes activos de un usuario de soporte
+  Future<int> getActiveIncidentsCount(String supportUid) async {
+    try {
+      final query = await _firestore
+          .collection('incidents')
+          .where('assignedTo.uid', isEqualTo: supportUid)
+          .where('status', whereIn: ['inProgress', 'onHold'])
+          .get();
+      
+      return query.docs.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   // Tomar incidente (asignar a soporte)
   Future<void> takeIncident(String incidentId) async {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Usuario no autenticado');
+
+      // Verificar límite de incidentes activos (máximo 2)
+      final activeCount = await getActiveIncidentsCount(user.uid);
+      if (activeCount >= 2) {
+        throw Exception('No puedes tomar más incidentes. Ya tienes 2 incidentes activos. Resuelve o cancela alguno antes de tomar otro.');
+      }
 
       await _firestore.collection('incidents').doc(incidentId).update({
         'status': 'inProgress',
@@ -157,7 +178,7 @@ class IncidentService {
   // Resolver incidente
   Future<void> resolveIncident({
     required String incidentId,
-    required String status, // 'resolved' o 'inProgress' (en espera)
+    required String status, // 'resolved', 'cancelled', 'onHold'
     String? notes,
     File? resolutionFile,
   }) async {
@@ -183,6 +204,8 @@ class IncidentService {
 
       if (status == 'resolved') {
         updateData['resolvedAt'] = FieldValue.serverTimestamp();
+      } else if (status == 'cancelled') {
+        updateData['cancelledAt'] = FieldValue.serverTimestamp();
       }
 
       await _firestore.collection('incidents').doc(incidentId).update(updateData);
@@ -232,6 +255,68 @@ class IncidentService {
         'inProgress': 0,
         'resolvedToday': 0,
         'totalMonth': 0,
+      };
+    }
+  }
+
+  // Obtener estadísticas específicas para usuario de soporte
+  Future<Map<String, int>> getSupportUserStatistics(String supportUid) async {
+    try {
+      final now = DateTime.now();
+      
+      // Inicio de la semana (lunes)
+      final weekStart = DateTime(now.year, now.month, now.day - (now.weekday - 1));
+      
+      // Incidentes resueltos esta semana
+      final resolvedThisWeekQuery = await _firestore
+          .collection('incidents')
+          .where('assignedTo.uid', isEqualTo: supportUid)
+          .where('status', isEqualTo: 'resolved')
+          .where('resolvedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
+          .get();
+
+      // Total de incidentes resueltos (histórico)
+      final totalResolvedQuery = await _firestore
+          .collection('incidents')
+          .where('assignedTo.uid', isEqualTo: supportUid)
+          .where('status', isEqualTo: 'resolved')
+          .get();
+
+      // Incidentes cancelados
+      final cancelledQuery = await _firestore
+          .collection('incidents')
+          .where('assignedTo.uid', isEqualTo: supportUid)
+          .where('status', isEqualTo: 'cancelled')
+          .get();
+
+      // Incidentes en espera
+      final onHoldQuery = await _firestore
+          .collection('incidents')
+          .where('assignedTo.uid', isEqualTo: supportUid)
+          .where('status', isEqualTo: 'onHold')
+          .get();
+
+      // Incidentes activos (en progreso)
+      final activeQuery = await _firestore
+          .collection('incidents')
+          .where('assignedTo.uid', isEqualTo: supportUid)
+          .where('status', isEqualTo: 'inProgress')
+          .get();
+
+      return {
+        'resolvedThisWeek': resolvedThisWeekQuery.docs.length,
+        'totalResolved': totalResolvedQuery.docs.length,
+        'cancelled': cancelledQuery.docs.length,
+        'onHold': onHoldQuery.docs.length,
+        'active': activeQuery.docs.length,
+      };
+    } catch (e) {
+      return {
+        'resolvedThisWeek': 0,
+        'totalResolved': 0,
+        'cancelled': 0,
+        'onHold': 0,
+        'active': 0,
       };
     }
   }

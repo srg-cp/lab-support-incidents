@@ -5,11 +5,15 @@ import '../utils/colors.dart';
 class IncidentCard extends StatelessWidget {
   final Incident incident;
   final VoidCallback? onTap;
+  final bool showTakeButton;
+  final VoidCallback? onTake;
 
   const IncidentCard({
     Key? key,
     required this.incident,
     this.onTap,
+    this.showTakeButton = false,
+    this.onTake,
   }) : super(key: key);
 
   @override
@@ -123,25 +127,48 @@ class IncidentCard extends StatelessWidget {
                 ],
               ],
             ),
-            if (onTap != null) ...[
+            if (showTakeButton || onTap != null) ...[
               const SizedBox(height: 12),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Ver detalles',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.accentGold,
-                      fontWeight: FontWeight.w600,
+                  if (showTakeButton && onTake != null)
+                    ElevatedButton.icon(
+                      onPressed: onTake,
+                      icon: const Icon(Icons.assignment_ind, size: 16),
+                      label: const Text('Tomar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accentGold,
+                        foregroundColor: AppColors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  
+                  if (onTap != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Ver detalles',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.accentGold,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 14,
+                          color: AppColors.accentGold,
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 14,
-                    color: AppColors.accentGold,
-                  ),
                 ],
               ),
             ],

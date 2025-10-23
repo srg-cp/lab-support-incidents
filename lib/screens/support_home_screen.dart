@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/incident_card.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/loading_overlay.dart';
+import '../providers/incident_provider.dart';
 import 'incident_resolution_screen.dart';
 
 class SupportHomeScreen extends StatefulWidget {
@@ -13,57 +17,48 @@ class SupportHomeScreen extends StatefulWidget {
 }
 
 class _SupportHomeScreenState extends State<SupportHomeScreen> {
-  IncidentStatus _filterStatus = IncidentStatus.pending;
+  String _filterStatus = 'all';
+  Map<String, int> _statistics = {};
+  bool _isLoadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  void _loadData() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // Cargar incidentes
+      final provider = Provider.of<IncidentProvider>(context, listen: false);
+      if (_filterStatus == 'all') {
+        // Cargar todos los incidentes pendientes para tomar
+        provider.getIncidents(status: 'pending');
+      } else {
+        // Cargar incidentes asignados al usuario de soporte
+        provider.getSupportIncidents(user.uid);
+      }
+      
+      // Cargar estadísticas
+      _loadStatistics();
+    }
+  }
+
+  void _loadStatistics() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final provider = Provider.of<IncidentProvider>(context, listen: false);
+      final stats = await provider.getSupportUserStatistics(user.uid);
+      setState(() {
+        _statistics = stats;
+        _isLoadingStats = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Datos de ejemplo
-    final allIncidents = [
-      Incident(
-        id: '1',
-        labName: 'A',
-        computerNumbers: [5, 6],
-        type: 'Pantallazo azul',
-        status: IncidentStatus.pending,
-        reportedBy: 'Juan Pérez',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 2)),
-      ),
-      Incident(
-        id: '2',
-        labName: 'C',
-        computerNumbers: [12],
-        type: 'No prende el monitor',
-        status: IncidentStatus.inProgress,
-        reportedBy: 'María García',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 1)),
-        assignedTo: 'Carlos Ruiz',
-      ),
-      Incident(
-        id: '3',
-        labName: 'B',
-        computerNumbers: [3, 4, 7],
-        type: 'Sin internet',
-        status: IncidentStatus.resolved,
-        reportedBy: 'Pedro López',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 3)),
-        assignedTo: 'Ana Torres',
-        resolvedAt: DateTime.now().subtract(const Duration(minutes: 30)),
-      ),
-      Incident(
-        id: '4',
-        labName: 'D',
-        computerNumbers: [15],
-        type: 'Teclado no funciona',
-        status: IncidentStatus.pending,
-        reportedBy: 'Laura Martínez',
-        reportedAt: DateTime.now().subtract(const Duration(minutes: 45)),
-      ),
-    ];
-
-    final filteredIncidents = allIncidents
-        .where((incident) => incident.status == _filterStatus)
-        .toList();
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Soporte Técnico'),
@@ -78,125 +73,250 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
       ),
       body: Column(
         children: [
+          // Estadísticas del usuario de soporte
+          _buildStatisticsCard(),
+          
           // Filtros
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: AppColors.lightGray,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildFilterChip(
-                    'Pendientes',
-                    IncidentStatus.pending,
-                    Icons.pending,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildFilterChip(
-                    'En Progreso',
-                    IncidentStatus.inProgress,
-                    Icons.work,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildFilterChip(
-                    'Resueltos',
-                    IncidentStatus.resolved,
-                    Icons.check_circle,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildFilterTabs(),
           
           // Lista de incidentes
           Expanded(
-            child: filteredIncidents.isEmpty
-                ? Center(
+            child: Consumer<IncidentProvider>(
+              builder: (context, provider, child) {
+                if (provider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (provider.error != null) {
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.inbox,
-                          size: 64,
-                          color: AppColors.textLight,
-                        ),
+                        Icon(Icons.error, size: 64, color: Colors.red),
                         const SizedBox(height: 16),
                         Text(
-                          'No hay incidentes ${_getStatusText()}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: AppColors.textLight,
-                          ),
+                          'Error: ${provider.error}',
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadData,
+                          child: const Text('Reintentar'),
                         ),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(24),
-                    itemCount: filteredIncidents.length,
-                    itemBuilder: (context, index) {
-                      final incident = filteredIncidents[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: IncidentCard(
-                          incident: incident,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => IncidentResolutionScreen(
-                                  incident: incident,
-                                ),
+                  );
+                }
+
+                final filteredIncidents = _getFilteredIncidents(provider.incidents);
+
+                if (filteredIncidents.isEmpty) {
+                  return EmptyState(
+                    icon: Icons.inbox,
+                    title: 'No hay incidentes',
+                    message: _getEmptyMessage(),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredIncidents.length,
+                  itemBuilder: (context, index) {
+                    final incident = filteredIncidents[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: IncidentCard(
+                        incident: incident,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => IncidentResolutionScreen(
+                                incident: incident,
                               ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                            ),
+                          ).then((_) => _loadData());
+                        },
+                        showTakeButton: _filterStatus == 'all' && 
+                                      incident.status == IncidentStatus.pending,
+                        onTake: () => _takeIncident(incident.id),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, IncidentStatus status, IconData icon) {
+  List<Incident> _getFilteredIncidents(List<Incident> incidents) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
+    switch (_filterStatus) {
+      case 'all':
+        // Mostrar solo incidentes pendientes para tomar
+        return incidents.where((i) => i.status == IncidentStatus.pending).toList();
+      case 'inProgress':
+        return incidents.where((i) => 
+          i.status == IncidentStatus.inProgress && 
+          i.assignedTo != null).toList();
+      case 'resolved':
+        return incidents.where((i) => i.status == IncidentStatus.resolved).toList();
+      case 'cancelled':
+        return incidents.where((i) => i.status == IncidentStatus.cancelled).toList();
+      case 'onHold':
+        return incidents.where((i) => i.status == IncidentStatus.onHold).toList();
+      default:
+        return incidents;
+    }
+  }
+
+  Widget _buildStatisticsCard() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mis Estadísticas',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_isLoadingStats)
+            const Center(child: CircularProgressIndicator())
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatItem(
+                    'Esta Semana',
+                    _statistics['resolvedThisWeek']?.toString() ?? '0',
+                    Icons.date_range,
+                    AppColors.success,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    'Total Resueltos',
+                    _statistics['totalResolved']?.toString() ?? '0',
+                    Icons.check_circle,
+                    AppColors.lightBlue,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    'Activos',
+                    _statistics['active']?.toString() ?? '0',
+                    Icons.work,
+                    AppColors.warning,
+                  ),
+                ),
+                Expanded(
+                  child: _buildStatItem(
+                    'En Espera',
+                    _statistics['onHold']?.toString() ?? '0',
+                    Icons.pause,
+                    Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textLight,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterTabs() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildFilterTab('Disponibles', 'all', Icons.inbox),
+            _buildFilterTab('Mis Activos', 'inProgress', Icons.work),
+            _buildFilterTab('Resueltos', 'resolved', Icons.check_circle),
+            _buildFilterTab('En Espera', 'onHold', Icons.pause),
+            _buildFilterTab('Cancelados', 'cancelled', Icons.cancel),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterTab(String label, String status, IconData icon) {
     final isSelected = _filterStatus == status;
     return GestureDetector(
       onTap: () {
         setState(() {
           _filterStatus = status;
         });
+        _loadData();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        margin: const EdgeInsets.only(right: 8, bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.accentGold : AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.accentGold.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
+          color: isSelected ? AppColors.accentGold : AppColors.lightGray,
+          borderRadius: BorderRadius.circular(20),
         ),
-        child: Column(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
+              size: 16,
               color: isSelected ? AppColors.white : AppColors.textLight,
-              size: 20,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(width: 4),
             Text(
               label,
-              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -209,14 +329,43 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
     );
   }
 
-  String _getStatusText() {
+  String _getEmptyMessage() {
     switch (_filterStatus) {
-      case IncidentStatus.pending:
-        return 'pendientes';
-      case IncidentStatus.inProgress:
-        return 'en progreso';
-      case IncidentStatus.resolved:
-        return 'resueltos';
+      case 'all':
+        return 'No hay incidentes pendientes para tomar';
+      case 'inProgress':
+        return 'No tienes incidentes activos';
+      case 'resolved':
+        return 'No has resuelto incidentes aún';
+      case 'cancelled':
+        return 'No tienes incidentes cancelados';
+      case 'onHold':
+        return 'No tienes incidentes en espera';
+      default:
+        return 'No hay incidentes';
+    }
+  }
+
+  void _takeIncident(String incidentId) async {
+    final provider = Provider.of<IncidentProvider>(context, listen: false);
+    
+    final success = await provider.takeIncident(incidentId);
+    
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Incidente tomado exitosamente'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _loadData(); // Recargar datos
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.error ?? 'Error al tomar el incidente'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 }

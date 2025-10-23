@@ -136,4 +136,32 @@ class IncidentProvider with ChangeNotifier {
       return false;
     }
   }
+
+  // Obtener incidentes asignados a un usuario de soporte
+  void getSupportIncidents(String supportUid, {String? status}) {
+    _incidentService.getIncidents(assignedToUid: supportUid, status: status).listen(
+      (snapshot) {
+        _incidents = snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return Incident.fromFirestore(doc.id, data);
+        }).toList();
+        notifyListeners();
+      },
+      onError: (error) {
+        _error = error.toString();
+        notifyListeners();
+      },
+    );
+  }
+
+  // Obtener estadísticas del usuario de soporte
+  Future<Map<String, int>> getSupportUserStatistics(String supportUid) async {
+    try {
+      return await _incidentService.getSupportUserStatistics(supportUid);
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return {};
+    }
+  }
 }
