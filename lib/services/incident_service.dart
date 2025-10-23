@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'storage_service.dart';
+import '../utils/error_handler.dart';
 
 class IncidentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -54,7 +55,7 @@ class IncidentService {
       
       if (conflictingComputers.isNotEmpty) {
         final pcList = conflictingComputers.map((pc) => 'PC $pc').join(', ');
-        throw Exception('Las siguientes computadoras ya tienen incidentes activos: $pcList. '
+        throw ComputerConflictException('Las siguientes computadoras ya tienen incidentes activos: $pcList. '
             'Espera a que se resuelvan antes de reportar nuevos incidentes.');
       }
 
@@ -63,7 +64,7 @@ class IncidentService {
       if (evidenceFile != null) {
         // Validar que sea una imagen
         if (!_storageService.isValidImageFile(evidenceFile)) {
-          throw Exception('Solo se permiten archivos de imagen (JPG, JPEG, PNG)');
+          throw ValidationException('Solo se permiten archivos de imagen (JPG, JPEG, PNG)');
         }
         
         // Comprimir si es necesario
@@ -234,10 +235,23 @@ class IncidentService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Usuario no autenticado');
 
+      // Verificar que el usuario sea de soporte
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) {
+        throw Exception('Usuario no encontrado en la base de datos');
+      }
+      
+      final userData = userDoc.data();
+      final userRole = userData?['role'];
+      
+      if (userRole != 'support') {
+        throw Exception('Solo el personal de soporte puede tomar incidentes');
+      }
+
       // Verificar límite de incidentes activos (máximo 2)
       final activeCount = await getActiveIncidentsCount(user.uid);
       if (activeCount >= 2) {
-        throw Exception('No puedes tomar más incidentes. Ya tienes 2 incidentes activos. Resuelve o cancela alguno antes de tomar otro.');
+        throw IncidentLimitException('No puedes tomar más incidentes. Ya tienes 2 incidentes activos. Resuelve o cancela alguno antes de tomar otro.');
       }
 
       await _firestore.collection('incidents').doc(incidentId).update({

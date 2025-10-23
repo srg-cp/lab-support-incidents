@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'dart:io';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
-import '../services/incident_service.dart';
+import '../providers/incident_provider.dart';
 
 class IncidentDetailScreen extends StatefulWidget {
   final String labName;
@@ -24,7 +25,6 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   File? _selectedMedia;
   bool _isSubmitting = false;
-  final IncidentService _incidentService = IncidentService();
 
   final List<Map<String, dynamic>> incidentTypes = [
     {'label': 'Pantallazo azul', 'icon': Icons.desktop_windows},
@@ -117,21 +117,22 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
 
     setState(() => _isSubmitting = true);
 
-    try {
-      // Crear el incidente en Firebase
-      await _incidentService.createIncident(
-        labName: widget.labName,
-        computerNumbers: widget.selectedComputers,
-        incidentType: _selectedIncidentType!,
-        description: _descriptionController.text.trim().isEmpty 
-            ? null 
-            : _descriptionController.text.trim(),
-        evidenceFile: _selectedMedia,
-      );
+    final provider = Provider.of<IncidentProvider>(context, listen: false);
+    
+    final success = await provider.createIncident(
+      labName: widget.labName,
+      computerNumbers: widget.selectedComputers,
+      incidentType: _selectedIncidentType!,
+      description: _descriptionController.text.trim().isEmpty 
+          ? null 
+          : _descriptionController.text.trim(),
+      evidenceFile: _selectedMedia,
+    );
 
-      setState(() => _isSubmitting = false);
+    setState(() => _isSubmitting = false);
 
-      if (mounted) {
+    if (mounted) {
+      if (success) {
         CustomModal.show(
           context,
           type: ModalType.success,
@@ -141,16 +142,16 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
             Navigator.of(context).popUntil((route) => route.isFirst);
           },
         );
-      }
-    } catch (e) {
-      setState(() => _isSubmitting = false);
-
-      if (mounted) {
+      } else {
+        // Determinar el tipo de modal según el tipo de error
+        final modalType = provider.errorType == 'warning' ? ModalType.warning : ModalType.danger;
+        final title = provider.errorType == 'warning' ? 'Conflicto de Computadoras' : 'Error al Reportar';
+        
         CustomModal.show(
           context,
-          type: ModalType.danger,
-          title: 'Error al Reportar',
-          message: 'No se pudo reportar el incidente. Por favor, verifica tu conexión e intenta nuevamente.\n\nError: ${e.toString()}',
+          type: modalType,
+          title: title,
+          message: provider.error ?? 'No se pudo reportar el incidente. Por favor, intenta nuevamente.',
         );
       }
     }

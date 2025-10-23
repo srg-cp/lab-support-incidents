@@ -7,6 +7,8 @@ import '../models/incident_model.dart';
 import '../widgets/custom_modal.dart';
 import '../widgets/image_viewer.dart';
 import '../providers/incident_provider.dart';
+import '../services/auth_service.dart';
+import '../services/auth_service.dart';
 
 class IncidentResolutionScreen extends StatefulWidget {
   final Incident incident;
@@ -21,6 +23,28 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
   File? _resolutionMedia;
   final TextEditingController _notesController = TextEditingController();
   bool _isSubmitting = false;
+  final AuthService _authService = AuthService();
+  String? _userRole;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    try {
+      final user = _authService.currentUser;
+      if (user != null) {
+        final role = await _authService.getUserRole(user.uid);
+        setState(() {
+          _userRole = role;
+        });
+      }
+    } catch (e) {
+      print('Error al obtener rol del usuario: $e');
+    }
+  }
 
   Future<void> _pickMedia(ImageSource source) async {
     final picker = ImagePicker();
@@ -112,11 +136,21 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
             message: 'El incidente ha sido asignado a ti. Puedes proceder a resolverlo.',
           );
         } else {
+          // Determinar el tipo de modal según el tipo de error
+          final modalType = provider.errorType == 'warning' ? ModalType.warning : ModalType.danger;
+          final title = provider.errorType == 'warning' ? 'Límite Alcanzado' : 'Error';
+          
           CustomModal.show(
             context,
-            type: ModalType.warning,
-            title: 'Error',
+            type: modalType,
+            title: title,
             message: provider.error ?? 'Error al tomar el incidente',
+            onConfirm: () {
+              // Limpiar el error después de mostrar el modal
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                provider.clearError();
+              });
+            },
           );
         }
       }
@@ -420,8 +454,8 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                 const SizedBox(height: 24),
               ],
               
-              // Botón tomar incidente (solo si está pendiente)
-              if (widget.incident.status == IncidentStatus.pending) ...[
+              // Botón tomar incidente (solo si está pendiente y el usuario es de soporte)
+              if (widget.incident.status == IncidentStatus.pending && _userRole == 'support') ...[
                 ElevatedButton.icon(
                   onPressed: _isSubmitting ? null : _takeIncident,
                   icon: const Icon(Icons.pan_tool),
@@ -434,8 +468,8 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                 const SizedBox(height: 24),
               ],
               
-              // Sección de resolución
-              if (widget.incident.status != IncidentStatus.pending) ...[
+              // Sección de resolución (solo para personal de soporte)
+              if (widget.incident.status != IncidentStatus.pending && _userRole == 'support') ...[
                 const Text(
                   'Resolución',
                   style: TextStyle(
@@ -680,6 +714,97 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                     ),
                   ),
                 ],
+              ],
+              
+              // Sección de solo lectura para administradores
+              if (widget.incident.status != IncidentStatus.pending && _userRole == 'admin') ...[
+                const Text(
+                  'Información del Incidente',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Mostrar imagen de resolución existente si existe
+                if (widget.incident.resolutionImage != null) ...[
+                  const Text(
+                    'Evidencia de Resolución',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ImageViewer(
+                    imageBase64: widget.incident.resolutionImage,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Mostrar notas de resolución existentes si existen
+                if (widget.incident.resolutionNotes != null && widget.incident.resolutionNotes!.isNotEmpty) ...[
+                  const Text(
+                    'Notas de Resolución',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.lightBlue.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      widget.incident.resolutionNotes!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Mensaje informativo para administradores
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.lightBlue.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: AppColors.lightBlue,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Como administrador, puedes visualizar la información del incidente pero no realizar acciones sobre él. Solo el personal de soporte puede tomar y resolver incidentes.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.lightBlue,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ],
           ),

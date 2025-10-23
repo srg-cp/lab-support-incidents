@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/incident_service.dart';
 import '../models/incident_model.dart';
+import '../utils/error_handler.dart';
 import 'dart:io';
 
 class IncidentProvider with ChangeNotifier {
@@ -10,13 +11,25 @@ class IncidentProvider with ChangeNotifier {
   List<Incident> _incidents = [];
   bool _isLoading = false;
   String? _error;
+  String _errorType = 'danger'; // 'warning' o 'danger'
 
   List<Incident> get incidents => _incidents;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  String get errorType => _errorType;
+
+  // Limpiar error
+  void clearError() {
+    _error = null;
+    _errorType = 'danger';
+    notifyListeners();
+  }
 
   // Obtener incidentes con filtro
   void getIncidents({String? status, String? labName}) {
+    // Limpiar error al cargar nuevos datos
+    _error = null;
+    
     Stream<QuerySnapshot> stream;
     
     if (status == 'pending' && labName == null) {
@@ -64,6 +77,7 @@ class IncidentProvider with ChangeNotifier {
   }) async {
     _isLoading = true;
     _error = null;
+    _errorType = 'danger';
     notifyListeners();
 
     try {
@@ -78,7 +92,8 @@ class IncidentProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.getErrorMessage(e);
+      _errorType = ErrorHandler.getErrorType(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -89,6 +104,7 @@ class IncidentProvider with ChangeNotifier {
   Future<bool> takeIncident(String incidentId) async {
     _isLoading = true;
     _error = null;
+    _errorType = 'danger';
     notifyListeners();
 
     try {
@@ -97,7 +113,8 @@ class IncidentProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ErrorHandler.getErrorMessage(e);
+      _errorType = ErrorHandler.getErrorType(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -106,6 +123,9 @@ class IncidentProvider with ChangeNotifier {
 
   // Obtener incidentes del usuario actual
   void getUserIncidents(String uid) {
+    // Limpiar error al cargar nuevos datos
+    _error = null;
+    
     _incidentService.getUserIncidentsSimple(uid).listen(
       (snapshot) {
         _incidents = snapshot.docs.map((doc) {
@@ -161,6 +181,9 @@ class IncidentProvider with ChangeNotifier {
 
   // Obtener incidentes pendientes
   void getPendingIncidents() {
+    // Limpiar error al cargar nuevos datos
+    _error = null;
+    
     _incidentService.getPendingIncidentsSimple().listen(
       (snapshot) {
         _incidents = snapshot.docs.map((doc) {
@@ -182,6 +205,9 @@ class IncidentProvider with ChangeNotifier {
 
   // Obtener incidentes asignados a un usuario de soporte
   void getSupportIncidents(String supportUid) {
+    // Limpiar error al cargar nuevos datos
+    _error = null;
+    
     _incidentService.getAssignedIncidentsSimple(supportUid).listen(
       (snapshot) {
         _incidents = snapshot.docs.map((doc) {

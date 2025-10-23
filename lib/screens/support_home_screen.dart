@@ -31,6 +31,7 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final provider = Provider.of<IncidentProvider>(context, listen: false);
+      
       if (_filterStatus == 'all') {
         provider.getPendingIncidents();
       } else {
@@ -316,7 +317,13 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
         setState(() {
           _filterStatus = status;
         });
-        _loadData();
+        
+        // Diferir la limpieza del error y carga de datos hasta después del build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final provider = Provider.of<IncidentProvider>(context, listen: false);
+          provider.clearError();
+          _loadData();
+        });
       },
       child: Container(
         margin: const EdgeInsets.only(right: 8, bottom: 16),
@@ -379,12 +386,22 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
         },
       );
     } else {
+      // Determinar el tipo de modal según el tipo de error
+      final modalType = provider.errorType == 'warning' ? ModalType.warning : ModalType.danger;
+      final title = provider.errorType == 'warning' ? 'Límite Alcanzado' : 'Error';
+      
       CustomModal.show(
-        context,
-        type: ModalType.warning,
-        title: 'Error',
-        message: provider.error ?? 'Error al tomar el incidente',
-      );
+          context,
+          type: modalType,
+          title: title,
+          message: provider.error ?? 'Error al tomar el incidente',
+          onConfirm: () {
+            // Limpiar el error después de mostrar el modal
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              provider.clearError();
+            });
+          },
+        );
     }
   }
 }
