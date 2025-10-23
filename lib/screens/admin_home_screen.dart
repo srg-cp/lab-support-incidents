@@ -3,8 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/incident_card.dart';
+import '../services/incident_service.dart';
 import 'user_management_screen.dart';
 import 'students_screen.dart';
+import 'incident_resolution_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({Key? key}) : super(key: key);
@@ -76,8 +78,46 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 }
 
-class AdminDashboard extends StatelessWidget {
+class AdminDashboard extends StatefulWidget {
   const AdminDashboard({Key? key}) : super(key: key);
+
+  @override
+  State<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<AdminDashboard> {
+  final IncidentService _incidentService = IncidentService();
+  Map<String, int> _statistics = {
+    'pending': 0,
+    'inProgress': 0,
+    'resolvedToday': 0,
+    'totalMonth': 0,
+  };
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatistics();
+  }
+
+  Future<void> _loadStatistics() async {
+    try {
+      final stats = await _incidentService.getStatistics();
+      if (mounted) {
+        setState(() {
+          _statistics = stats;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,58 +126,83 @@ class AdminDashboard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Resumen General',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Resumen General',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              IconButton(
+                onPressed: _isLoading ? null : _loadStatistics,
+                icon: _isLoading 
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+                tooltip: 'Actualizar estadísticas',
+              ),
+            ],
           ),
           const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Pendientes',
-                  '12',
-                  Icons.pending,
-                  AppColors.warning,
-                ),
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40.0),
+                child: CircularProgressIndicator(),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildStatCard(
-                  'En Progreso',
-                  '5',
-                  Icons.work,
-                  AppColors.lightBlue,
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'Pendientes',
+                    '${_statistics['pending']}',
+                    Icons.pending,
+                    AppColors.warning,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Resueltos Hoy',
-                  '8',
-                  Icons.check_circle,
-                  AppColors.success,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    'En Progreso',
+                    '${_statistics['inProgress']}',
+                    Icons.work,
+                    AppColors.lightBlue,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildStatCard(
-                  'Total Mes',
-                  '156',
-                  Icons.analytics,
-                  AppColors.primaryBlue,
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'Resueltos Hoy',
+                    '${_statistics['resolvedToday']}',
+                    Icons.check_circle,
+                    AppColors.success,
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    'Total Mes',
+                    '${_statistics['totalMonth']}',
+                    Icons.analytics,
+                    AppColors.primaryBlue,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -191,55 +256,234 @@ class AdminDashboard extends StatelessWidget {
   }
 }
 
-class AdminIncidentsView extends StatelessWidget {
+class AdminIncidentsView extends StatefulWidget {
   const AdminIncidentsView({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    // Datos de ejemplo
-    final incidents = [
-      Incident(
-        id: '1',
-        labName: 'A',
-        computerNumbers: [5, 6],
-        type: 'Pantallazo azul',
-        status: IncidentStatus.pending,
-        reportedBy: 'Juan Pérez',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 2)),
-      ),
-      Incident(
-        id: '2',
-        labName: 'C',
-        computerNumbers: [12],
-        type: 'No prende el monitor',
-        status: IncidentStatus.inProgress,
-        reportedBy: 'María García',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 1)),
-        assignedTo: 'Carlos Ruiz',
-      ),
-      Incident(
-        id: '3',
-        labName: 'B',
-        computerNumbers: [3, 4, 7],
-        type: 'Sin internet',
-        status: IncidentStatus.resolved,
-        reportedBy: 'Pedro López',
-        reportedAt: DateTime.now().subtract(const Duration(hours: 3)),
-        assignedTo: 'Ana Torres',
-        resolvedAt: DateTime.now().subtract(const Duration(minutes: 30)),
-      ),
-    ];
+  State<AdminIncidentsView> createState() => _AdminIncidentsViewState();
+}
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(24),
-      itemCount: incidents.length,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: IncidentCard(incident: incidents[index]),
-        );
-      },
+class _AdminIncidentsViewState extends State<AdminIncidentsView> {
+  final IncidentService _incidentService = IncidentService();
+  String _selectedFilter = 'all';
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Header con filtros
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Gestión de Incidentes',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildFilterChip('all', 'Todos'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('pending', 'Pendientes'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('inProgress', 'En Progreso'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('resolved', 'Resueltos'),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('onHold', 'En Espera'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Lista de incidentes
+        Expanded(
+          child: StreamBuilder(
+            stream: _incidentService.getAllIncidentsSimple(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red.shade300,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error al cargar incidentes',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.red.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Verifica tu conexión a internet',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 64,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No hay incidentes registrados',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // Convertir documentos a objetos Incident
+              final incidents = snapshot.data!.docs.map((doc) {
+                return Incident.fromFirestore(doc.id, doc.data() as Map<String, dynamic>);
+              }).toList();
+
+              // Filtrar incidentes según el filtro seleccionado
+              final filteredIncidents = _filterIncidents(incidents);
+
+              // Ordenar por fecha de reporte (más recientes primero)
+              filteredIncidents.sort((a, b) => b.reportedAt.compareTo(a.reportedAt));
+
+              if (filteredIncidents.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.filter_list_off,
+                        size: 64,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No hay incidentes con el filtro seleccionado',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(24),
+                itemCount: filteredIncidents.length,
+                itemBuilder: (context, index) {
+                  final incident = filteredIncidents[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: IncidentCard(
+                      incident: incident,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => IncidentResolutionScreen(
+                              incident: incident,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
+  }
+
+  Widget _buildFilterChip(String value, String label) {
+    final isSelected = _selectedFilter == value;
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _selectedFilter = value;
+        });
+      },
+      selectedColor: AppColors.primaryBlue.withOpacity(0.2),
+      checkmarkColor: AppColors.primaryBlue,
+      labelStyle: TextStyle(
+        color: isSelected ? AppColors.primaryBlue : AppColors.textLight,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+    );
+  }
+
+  List<Incident> _filterIncidents(List<Incident> incidents) {
+    if (_selectedFilter == 'all') {
+      return incidents;
+    }
+
+    return incidents.where((incident) {
+      switch (_selectedFilter) {
+        case 'pending':
+          return incident.status == IncidentStatus.pending;
+        case 'inProgress':
+          return incident.status == IncidentStatus.inProgress;
+        case 'resolved':
+          return incident.status == IncidentStatus.resolved;
+        case 'onHold':
+          return incident.status == IncidentStatus.onHold;
+        default:
+          return true;
+      }
+    }).toList();
   }
 }
 

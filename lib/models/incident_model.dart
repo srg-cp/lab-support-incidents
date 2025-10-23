@@ -4,6 +4,31 @@ import '../utils/colors.dart';
 
 enum IncidentStatus { pending, inProgress, resolved, cancelled, onHold }
 
+class AssignedUser {
+  final String uid;
+  final String name;
+
+  AssignedUser({
+    required this.uid,
+    required this.name,
+  });
+
+  static AssignedUser? fromMap(Map<String, dynamic>? data) {
+    if (data == null) return null;
+    return AssignedUser(
+      uid: data['uid'] ?? '',
+      name: data['name'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'uid': uid,
+      'name': name,
+    };
+  }
+}
+
 class Incident {
   final String id;
   final String labName;
@@ -12,12 +37,13 @@ class Incident {
   final IncidentStatus status;
   final String reportedBy;
   final DateTime reportedAt;
-  final String? assignedTo;
+  final AssignedUser? assignedTo;
   final DateTime? resolvedAt;
   final String? description;
   final String? evidenceImage; // Cambiado de mediaUrl a evidenceImage (base64)
   final String? resolutionImage; // Agregado para imagen de resolución (base64)
   final String? resolutionNotes; // Agregado para notas de resolución
+  final String? cancelledBy; // Agregado para rastrear quién canceló el incidente
 
   Incident({
     required this.id,
@@ -33,6 +59,7 @@ class Incident {
     this.evidenceImage,
     this.resolutionImage,
     this.resolutionNotes,
+    this.cancelledBy,
   });
 
   String getStatusText() {
@@ -90,12 +117,13 @@ class Incident {
       status: _parseStatus(data['status']),
       reportedBy: data['reportedBy']?['name'] ?? 'Usuario',
       reportedAt: (data['reportedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      assignedTo: data['assignedTo']?['name'],
+      assignedTo: AssignedUser.fromMap(data['assignedTo']),
       resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
       description: data['description'],
       evidenceImage: data['evidenceImage'], // Cambiado de evidenceUrl
       resolutionImage: data['resolutionImage'], // Agregado
       resolutionNotes: data['resolutionNotes'], // Agregado
+      cancelledBy: data['cancelledBy']?['name'], // Agregado
     );
   }
 
@@ -143,12 +171,13 @@ extension IncidentFirestore on Incident {
       status: _parseStatus(data['status']),
       reportedBy: data['reportedBy']?['name'] ?? 'Usuario',
       reportedAt: (data['reportedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      assignedTo: data['assignedTo']?['name'],
+      assignedTo: AssignedUser.fromMap(data['assignedTo']),
       resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
       description: data['description'],
       evidenceImage: data['evidenceImage'],
       resolutionImage: data['resolutionImage'],
       resolutionNotes: data['resolutionNotes'],
+      cancelledBy: data['cancelledBy']?['name'],
     );
   }
 
@@ -179,7 +208,7 @@ extension IncidentFirestore on Incident {
         'name': reportedBy,
       },
       'reportedAt': Timestamp.fromDate(reportedAt),
-      'assignedTo': assignedTo != null ? {'name': assignedTo} : null,
+      'assignedTo': assignedTo?.toMap(),
       'resolvedAt': resolvedAt != null ? Timestamp.fromDate(resolvedAt!) : null,
       'description': description,
       'evidenceImage': evidenceImage,

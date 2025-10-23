@@ -276,7 +276,7 @@ class _StudentIncidentDetailScreen extends StatelessWidget {
         statusText = 'Pendiente';
         statusIcon = Icons.pending;
         break;
-      case 'in_progress':
+      case 'inProgress':
         statusColor = Colors.blue;
         statusText = 'En Progreso';
         statusIcon = Icons.work;
@@ -428,7 +428,7 @@ class _StudentIncidentDetailScreen extends StatelessWidget {
                 [
                   if (assignedTo != null)
                     _buildDetailRow(Icons.person, 'Asignado a', assignedTo['name'] ?? 'N/A'),
-                  if (status == 'in_progress')
+                  if (status == 'inProgress')
                     _buildDetailRow(Icons.info, 'Estado', 'El incidente está siendo atendido por el personal de soporte'),
                 ],
               ),
@@ -623,13 +623,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   return data['status'] == 'resolved';
                 }).length;
 
-                // Incidentes de esta semana
+                // Incidentes reportados esta semana
                 final now = DateTime.now();
-                final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+                final startOfWeek = DateTime(now.year, now.month, now.day - (now.weekday - 1));
                 final weekIncidents = incidents.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final createdAt = data['createdAt']?.toDate();
-                  return createdAt != null && createdAt.isAfter(startOfWeek);
+                  final reportedAt = data['reportedAt']?.toDate();
+                  return reportedAt != null && reportedAt.isAfter(startOfWeek);
                 }).length;
 
                 return Column(
@@ -657,10 +657,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildStatCard(
-                            'Pendientes',
-                            pendingIncidents.toString(),
-                            Icons.pending,
-                            AppColors.warning,
+                            'Esta Semana',
+                            weekIncidents.toString(),
+                            Icons.date_range,
+                            AppColors.accentGold,
                           ),
                         ),
                       ],
@@ -679,10 +679,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildStatCard(
-                            'Esta Semana',
-                            weekIncidents.toString(),
-                            Icons.date_range,
-                            AppColors.accentGold,
+                            'Pendientes',
+                            pendingIncidents.toString(),
+                            Icons.pending,
+                            AppColors.warning,
                           ),
                         ),
                       ],
@@ -869,7 +869,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         statusColor = Colors.orange;
         statusText = 'Pendiente';
         break;
-      case 'in_progress':
+      case 'inProgress':
         statusColor = Colors.blue;
         statusText = 'En Progreso';
         break;
@@ -960,7 +960,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         statusText = 'Pendiente';
         statusIcon = Icons.pending;
         break;
-      case 'in_progress':
+      case 'inProgress':
         statusColor = Colors.blue;
         statusText = 'En Progreso';
         statusIcon = Icons.work;

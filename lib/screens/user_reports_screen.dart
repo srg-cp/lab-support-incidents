@@ -6,6 +6,8 @@ import '../providers/incident_provider.dart';
 import '../widgets/incident_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/loading_overlay.dart';
+import '../models/incident_model.dart';
+import 'incident_resolution_screen.dart';
 
 class UserReportsScreen extends StatefulWidget {
   const UserReportsScreen({Key? key}) : super(key: key);
@@ -102,13 +104,22 @@ class _UserReportsScreenState extends State<UserReportsScreen> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: IncidentCard(
                     incident: incident,
-                    // No pasamos onTap para que no muestre acciones
+                    onTap: () => _showIncidentDetail(incident),
                   ),
                 );
               },
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showIncidentDetail(Incident incident) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => IncidentResolutionScreen(incident: incident),
       ),
     );
   }

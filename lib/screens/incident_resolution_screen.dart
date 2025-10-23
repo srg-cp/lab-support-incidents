@@ -34,6 +34,12 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
   }
 
   void _showMediaOptions() {
+    // No permitir agregar evidencia si el incidente ya está resuelto
+    if (widget.incident.status == IncidentStatus.resolved) {
+      _showIncidentResolvedMessage();
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -127,14 +133,53 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
     }
   }
 
-  Future<void> _resolveIncident(IncidentStatus newStatus) async {
-    if (newStatus == IncidentStatus.resolved && _resolutionMedia == null) {
+  void _showCancelConfirmation() {
+    CustomModal.showConfirmation(
+      context,
+      type: ModalType.warning,
+      title: 'Confirmar Cancelación',
+      message: 'Esta acción cancelará el incidente y lo devolverá al estado pendiente para que otro técnico de soporte pueda tomarlo.\n\n¿Estás seguro de que deseas cancelar este incidente?',
+      confirmText: 'Sí',
+      cancelText: 'No, Mantener',
+      onConfirm: () => _resolveIncident(IncidentStatus.cancelled),
+    );
+  }
+
+  void _showResolveConfirmation() {
+    if (_resolutionMedia == null) {
       CustomModal.show(
         context,
         type: ModalType.warning,
         title: 'Evidencia Requerida',
         message: 'Debes adjuntar una foto o video como evidencia de la resolución.',
       );
+      return;
+    }
+
+    CustomModal.showConfirmation(
+      context,
+      type: ModalType.warning,
+      title: 'Confirmar Resolución',
+      message: 'Una vez marcado como resuelto, este incidente no podrá ser modificado por nadie.\n\n¿Estás seguro de que deseas marcar este incidente como resuelto?',
+      confirmText: 'Sí, Resolver',
+      cancelText: 'Cancelar',
+      onConfirm: () => _resolveIncident(IncidentStatus.resolved),
+    );
+  }
+
+  void _showIncidentResolvedMessage() {
+    CustomModal.show(
+      context,
+      type: ModalType.info,
+      title: 'Incidente Resuelto',
+      message: 'Este incidente ya ha sido resuelto y no puede ser modificado.',
+    );
+  }
+
+  Future<void> _resolveIncident(IncidentStatus newStatus) async {
+    // Verificar si el incidente ya está resuelto
+    if (widget.incident.status == IncidentStatus.resolved) {
+      _showIncidentResolvedMessage();
       return;
     }
 
@@ -179,7 +224,7 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
               message = 'El incidente ha sido marcado como resuelto exitosamente.';
               break;
             case IncidentStatus.cancelled:
-              message = 'El incidente ha sido cancelado.';
+              message = 'El incidente ha sido cancelado y devuelto al estado pendiente para que otro técnico pueda tomarlo.';
               break;
             case IncidentStatus.onHold:
               message = 'El incidente ha sido puesto en espera.';
@@ -237,11 +282,18 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
             children: [
               // Información del incidente
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.lightBlue.withOpacity(0.1),
+                  color: AppColors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.lightBlue.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.lightBlue.withOpacity(0.2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,59 +325,48 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
+                    
+                    // Título principal
                     Text(
-                      'Lab ${widget.incident.labName} - PC: ${widget.incident.computerNumbers.join(", ")}',
+                      'Lab ${widget.incident.labName}',
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textDark,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.error_outline, size: 16, color: AppColors.textLight),
-                        const SizedBox(width: 8),
-                        Text(
-                          widget.incident.type,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 4),
+                    Text(
+                      'PC: ${widget.incident.computerNumbers.join(", ")}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.lightBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.person, size: 16, color: AppColors.textLight),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Reportado por: ${widget.incident.reportedBy}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (widget.incident.assignedTo != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Información organizada en tarjetas
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightGray.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
                         children: [
-                          Icon(Icons.assignment_ind, size: 16, color: AppColors.textLight),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Asignado a: ${widget.incident.assignedTo}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textLight,
-                            ),
-                          ),
+                          _buildInfoRow(Icons.error_outline, 'Tipo de problema', widget.incident.type),
+                          const SizedBox(height: 12),
+                          _buildInfoRow(Icons.person, 'Reportado por', widget.incident.reportedBy),
+                          if (widget.incident.assignedTo != null) ...[
+                            const SizedBox(height: 12),
+                            _buildInfoRow(Icons.assignment_ind, 'Asignado a', widget.incident.assignedTo!.name),
+                          ],
                         ],
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
@@ -452,164 +493,232 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                   const SizedBox(height: 16),
                 ],
                 
-                TextField(
-                  controller: _notesController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: 'Notas sobre la resolución...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: AppColors.white,
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                if (_resolutionMedia != null)
-                  Stack(
-                    children: [
-                      ClipRRect(
+                // Solo mostrar opciones de modificación si el incidente NO está resuelto
+                if (widget.incident.status != IncidentStatus.resolved) ...[
+                  TextField(
+                    controller: _notesController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Notas sobre la resolución...',
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          _resolutionMedia!,
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
                       ),
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _resolutionMedia = null;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.danger,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              color: AppColors.white,
-                              size: 20,
+                      filled: true,
+                      fillColor: AppColors.white,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  if (_resolutionMedia != null)
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            _resolutionMedia!,
+                            height: 200,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _resolutionMedia = null;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.danger,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: AppColors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
+                        ),
+                      ],
+                    )
+                  else
+                    GestureDetector(
+                      onTap: _showMediaOptions,
+                      child: Container(
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: AppColors.lightGray,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.lightBlue.withOpacity(0.3),
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_a_photo,
+                                size: 40,
+                                color: AppColors.textLight,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Agregar evidencia',
+                                style: TextStyle(
+                                  color: AppColors.textLight,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Botones de acción
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => _resolveIncident(IncidentStatus.onHold),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.orange),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              child: const Text(
+                                'En Espera',
+                                style: TextStyle(color: Colors.orange),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : _showCancelConfirmation,
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.red),
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                              child: const Text(
+                                'Cancelar',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSubmitting
+                              ? null
+                              : _showResolveConfirmation,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.white,
+                                  ),
+                                )
+                              : const Text('Marcar como Resuelto'),
                         ),
                       ),
                     ],
-                  )
-                else
-                  GestureDetector(
-                    onTap: _showMediaOptions,
-                    child: Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: AppColors.lightGray,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.lightBlue.withOpacity(0.3),
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_a_photo,
-                              size: 40,
-                              color: AppColors.textLight,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Agregar evidencia',
-                              style: TextStyle(
-                                color: AppColors.textLight,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
-                
-                const SizedBox(height: 24),
-                
-                // Botones de acción
-                Column(
-                  children: [
-                    Row(
+                ] else ...[
+                  // Mensaje para incidentes ya resueltos
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                    ),
+                    child: Row(
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _isSubmitting
-                                ? null
-                                : () => _resolveIncident(IncidentStatus.onHold),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.orange),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            child: const Text(
-                              'En Espera',
-                              style: TextStyle(color: Colors.orange),
-                            ),
-                          ),
+                        Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                          size: 24,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton(
-                            onPressed: _isSubmitting
-                                ? null
-                                : () => _resolveIncident(IncidentStatus.cancelled),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.red),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            child: const Text(
-                              'Cancelar',
-                              style: TextStyle(color: Colors.red),
+                          child: Text(
+                            'Este incidente ha sido resuelto y no puede ser modificado.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSubmitting
-                            ? null
-                            : () => _resolveIncident(IncidentStatus.resolved),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: _isSubmitting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.white,
-                                ),
-                              )
-                            : const Text('Marcar como Resuelto'),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ],
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: AppColors.lightBlue),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textLight,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

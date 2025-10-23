@@ -73,59 +73,80 @@ class IncidentCard extends StatelessWidget {
                 color: AppColors.textDark,
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 16,
-                  color: AppColors.textLight,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    incident.type,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textDark,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.lightGray.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 16,
+                        color: AppColors.textLight,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          incident.type,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textDark,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person,
+                        size: 16,
+                        color: AppColors.textLight,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Reportado por: ${incident.reportedBy}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (incident.assignedTo != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.assignment_ind,
+                          size: 16,
+                          color: AppColors.lightBlue,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Asignado a: ${incident.assignedTo!.name}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.lightBlue,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.person,
-                  size: 16,
-                  color: AppColors.textLight,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  incident.reportedBy,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textLight,
-                  ),
-                ),
-                if (incident.assignedTo != null) ...[
-                  const SizedBox(width: 16),
-                  Icon(
-                    Icons.assignment_ind,
-                    size: 16,
-                    color: AppColors.textLight,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    incident.assignedTo!,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textLight,
-                    ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
             if (showTakeButton || onTap != null) ...[
               const SizedBox(height: 12),

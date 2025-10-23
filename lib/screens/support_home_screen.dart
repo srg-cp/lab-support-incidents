@@ -5,7 +5,7 @@ import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/incident_card.dart';
 import '../widgets/empty_state.dart';
-import '../widgets/loading_overlay.dart';
+import '../widgets/custom_modal.dart';
 import '../providers/incident_provider.dart';
 import 'incident_resolution_screen.dart';
 
@@ -30,17 +30,15 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
   void _loadData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      // Cargar incidentes
       final provider = Provider.of<IncidentProvider>(context, listen: false);
       if (_filterStatus == 'all') {
-        // Cargar todos los incidentes pendientes para tomar
-        provider.getIncidents(status: 'pending');
+        provider.getPendingIncidents();
       } else {
-        // Cargar incidentes asignados al usuario de soporte
+        // Para todos los otros filtros (inProgress, resolved, onHold), 
+        // cargar los incidentes asignados al usuario de soporte
         provider.getSupportIncidents(user.uid);
       }
       
-      // Cargar estadísticas
       _loadStatistics();
     }
   }
@@ -48,12 +46,26 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
   void _loadStatistics() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final provider = Provider.of<IncidentProvider>(context, listen: false);
-      final stats = await provider.getSupportUserStatistics(user.uid);
       setState(() {
-        _statistics = stats;
-        _isLoadingStats = false;
+        _isLoadingStats = true;
       });
+      
+      try {
+        final provider = Provider.of<IncidentProvider>(context, listen: false);
+        final stats = await provider.getSupportUserStatistics(user.uid);
+        if (mounted) {
+          setState(() {
+            _statistics = stats;
+            _isLoadingStats = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoadingStats = false;
+          });
+        }
+      }
     }
   }
 
@@ -111,6 +123,14 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
 
                 final filteredIncidents = _getFilteredIncidents(provider.incidents);
 
+                // Debug: Mostrar información de incidentes
+                for (var incident in filteredIncidents) {
+                  print('📄 Incidente ${incident.id}:');
+                  print('   - Estado: ${incident.status}');
+                  print('   - Asignado a: ${incident.assignedTo?.name} (${incident.assignedTo?.uid})');
+                  print('   - Lab: ${incident.labName}');
+                }
+
                 if (filteredIncidents.isEmpty) {
                   return EmptyState(
                     icon: Icons.inbox,
@@ -162,13 +182,13 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
         // Mostrar solo incidentes pendientes para tomar
         return incidents.where((i) => i.status == IncidentStatus.pending).toList();
       case 'inProgress':
+        final currentUserUid = user.uid;
         return incidents.where((i) => 
-          i.status == IncidentStatus.inProgress && 
-          i.assignedTo != null).toList();
+          (i.status == IncidentStatus.inProgress || i.status == IncidentStatus.onHold) && 
+          i.assignedTo != null && 
+          i.assignedTo!.uid == currentUserUid).toList();
       case 'resolved':
         return incidents.where((i) => i.status == IncidentStatus.resolved).toList();
-      case 'cancelled':
-        return incidents.where((i) => i.status == IncidentStatus.cancelled).toList();
       case 'onHold':
         return incidents.where((i) => i.status == IncidentStatus.onHold).toList();
       default:
@@ -283,7 +303,6 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
             _buildFilterTab('Mis Activos', 'inProgress', Icons.work),
             _buildFilterTab('Resueltos', 'resolved', Icons.check_circle),
             _buildFilterTab('En Espera', 'onHold', Icons.pause),
-            _buildFilterTab('Cancelados', 'cancelled', Icons.cancel),
           ],
         ),
       ),
@@ -334,11 +353,9 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
       case 'all':
         return 'No hay incidentes pendientes para tomar';
       case 'inProgress':
-        return 'No tienes incidentes activos';
+        return 'No tienes incidentes activos (en progreso o en espera)';
       case 'resolved':
         return 'No has resuelto incidentes aún';
-      case 'cancelled':
-        return 'No tienes incidentes cancelados';
       case 'onHold':
         return 'No tienes incidentes en espera';
       default:
@@ -352,19 +369,21 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
     final success = await provider.takeIncident(incidentId);
     
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Incidente tomado exitosamente'),
-          backgroundColor: AppColors.success,
-        ),
+      CustomModal.show(
+        context,
+        type: ModalType.success,
+        title: 'Incidente Tomado',
+        message: 'El incidente ha sido asignado a ti exitosamente. Puedes proceder a resolverlo.',
+        onConfirm: () {
+          _loadData(); // Recargar datos después de cerrar el modal
+        },
       );
-      _loadData(); // Recargar datos
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.error ?? 'Error al tomar el incidente'),
-          backgroundColor: Colors.red,
-        ),
+      CustomModal.show(
+        context,
+        type: ModalType.warning,
+        title: 'Error',
+        message: provider.error ?? 'Error al tomar el incidente',
       );
     }
   }

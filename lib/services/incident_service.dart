@@ -105,21 +105,21 @@ class IncidentService {
     String? labName,
     String? assignedToUid,
   }) {
-    Query query = _firestore.collection('incidents').orderBy('reportedAt', descending: true);
-
-    if (status != null) {
-      query = query.where('status', isEqualTo: status);
-    }
-
-    if (labName != null) {
-      query = query.where('labName', isEqualTo: labName);
-    }
-
+    // Para evitar problemas de índices, solo permitir un filtro a la vez
     if (assignedToUid != null) {
-      query = query.where('assignedTo.uid', isEqualTo: assignedToUid);
+      return getAssignedIncidents(assignedToUid);
     }
-
-    return query.snapshots();
+    
+    if (status == 'pending') {
+      return getPendingIncidents();
+    }
+    
+    if (labName != null) {
+      return getIncidentsByLab(labName);
+    }
+    
+    // Si no hay filtros específicos, devolver todos los incidentes
+    return getAllIncidents();
   }
 
   // Obtener incidentes de un usuario específico
@@ -127,12 +127,90 @@ class IncidentService {
     return _firestore
         .collection('incidents')
         .where('reportedBy.uid', isEqualTo: uid)
+        .orderBy('reportedAt', descending: true)
+        .snapshots();
+  }
+
+  // Versión temporal sin ordenamiento para evitar problemas de índices
+  Stream<QuerySnapshot> getUserIncidentsSimple(String uid) {
+    return _firestore
+        .collection('incidents')
+        .where('reportedBy.uid', isEqualTo: uid)
+        .snapshots();
+  }
+
+  // Método específico para obtener incidentes pendientes
+  Stream<QuerySnapshot> getPendingIncidents() {
+    return _firestore
+        .collection('incidents')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('reportedAt', descending: true)
+        .snapshots();
+  }
+
+  // Método específico para obtener incidentes asignados a un usuario de soporte
+  Stream<QuerySnapshot> getAssignedIncidents(String supportUid) {
+    return _firestore
+        .collection('incidents')
+        .where('assignedTo.uid', isEqualTo: supportUid)
+        .orderBy('reportedAt', descending: true)
+        .snapshots();
+  }
+
+  // Método específico para obtener todos los incidentes
+  Stream<QuerySnapshot> getAllIncidents() {
+    return _firestore
+        .collection('incidents')
+        .orderBy('reportedAt', descending: true)
+        .snapshots();
+  }
+
+  // Método específico para obtener incidentes por laboratorio
+  Stream<QuerySnapshot> getIncidentsByLab(String labName) {
+    return _firestore
+        .collection('incidents')
+        .where('labName', isEqualTo: labName)
+        .orderBy('reportedAt', descending: true)
         .snapshots();
   }
 
   // Alias para mayor claridad en la pantalla de estudiantes
   Stream<QuerySnapshot> getIncidentsByUser(String uid) {
-    return getUserIncidents(uid);
+    return getUserIncidentsSimple(uid);
+  }
+
+  // Método de diagnóstico para probar consultas
+  Future<void> testQueries() async {
+    try {
+      print('🔍 Probando consulta básica...');
+      final basicQuery = await _firestore
+          .collection('incidents')
+          .orderBy('reportedAt', descending: true)
+          .limit(1)
+          .get();
+      print('✅ Consulta básica exitosa: ${basicQuery.docs.length} documentos');
+
+      print('🔍 Probando consulta por estado...');
+      final statusQuery = await _firestore
+          .collection('incidents')
+          .where('status', isEqualTo: 'pending')
+          .orderBy('reportedAt', descending: true)
+          .limit(1)
+          .get();
+      print('✅ Consulta por estado exitosa: ${statusQuery.docs.length} documentos');
+
+      print('🔍 Probando consulta por usuario asignado...');
+      final assignedQuery = await _firestore
+          .collection('incidents')
+          .where('assignedTo.uid', isEqualTo: 'test-uid')
+          .orderBy('reportedAt', descending: true)
+          .limit(1)
+          .get();
+      print('✅ Consulta por usuario asignado exitosa: ${assignedQuery.docs.length} documentos');
+
+    } catch (e) {
+      print('❌ Error en consulta: $e');
+    }
   }
 
   // Verificar incidentes activos de un usuario de soporte
@@ -197,15 +275,28 @@ class IncidentService {
       }
 
       final Map<String, Object?> updateData = {
-        'status': status,
         'resolutionNotes': notes,
         'resolutionImage': resolutionBase64, // Cambiado de resolutionUrl a resolutionImage
       };
 
       if (status == 'resolved') {
+        updateData['status'] = 'resolved';
         updateData['resolvedAt'] = FieldValue.serverTimestamp();
       } else if (status == 'cancelled') {
+        // Cuando se cancela un incidente, vuelve al estado 'pending' 
+        // y se quita la asignación para que otro técnico pueda tomarlo
+        updateData['status'] = 'pending';
+        updateData['assignedTo'] = null;
+        updateData['assignedAt'] = null;
         updateData['cancelledAt'] = FieldValue.serverTimestamp();
+        updateData['cancelledBy'] = {
+          'uid': _auth.currentUser?.uid,
+          'name': _auth.currentUser?.displayName ?? _auth.currentUser?.email?.split('@')[0] ?? 'Soporte',
+        };
+      } else if (status == 'onHold') {
+        updateData['status'] = 'onHold';
+      } else {
+        updateData['status'] = status;
       }
 
       await _firestore.collection('incidents').doc(incidentId).update(updateData);
@@ -259,58 +350,101 @@ class IncidentService {
     }
   }
 
+  // Métodos temporales sin ordenamiento para evitar problemas de índices
+  Stream<QuerySnapshot> getPendingIncidentsSimple() {
+    return _firestore
+        .collection('incidents')
+        .where('status', isEqualTo: 'pending')
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot> getAssignedIncidentsSimple(String supportUid) {
+    return _firestore
+        .collection('incidents')
+        .where('assignedTo.uid', isEqualTo: supportUid)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot> getAllIncidentsSimple() {
+    return _firestore
+        .collection('incidents')
+        .snapshots();
+  }
+
+  // Obtener incidentes cancelados por un usuario específico
+  
+
   // Obtener estadísticas específicas para usuario de soporte
   Future<Map<String, int>> getSupportUserStatistics(String supportUid) async {
     try {
+      print('🔍 DEBUG ESTADÍSTICAS - Consultando para supportUid: $supportUid');
       final now = DateTime.now();
       
       // Inicio de la semana (lunes)
       final weekStart = DateTime(now.year, now.month, now.day - (now.weekday - 1));
+      print('📅 Inicio de semana: $weekStart');
       
-      // Incidentes resueltos esta semana
-      final resolvedThisWeekQuery = await _firestore
+      // Obtener TODOS los incidentes asignados al usuario y filtrar en código
+      final allAssignedQuery = await _firestore
           .collection('incidents')
           .where('assignedTo.uid', isEqualTo: supportUid)
-          .where('status', isEqualTo: 'resolved')
-          .where('resolvedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
           .get();
+      
+      print('📊 Total incidentes asignados: ${allAssignedQuery.docs.length}');
+      
+      // Filtrar en código para evitar índices complejos
+      int resolvedThisWeekCount = 0;
+      int totalResolvedCount = 0;
+      int onHoldCount = 0;
+      int activeCount = 0;
+      
+      for (var doc in allAssignedQuery.docs) {
+        final data = doc.data();
+        final status = data['status'] as String?;
+        
+        if (status == 'resolved') {
+          totalResolvedCount++;
+          
+          // Verificar si fue resuelto esta semana
+          final resolvedAt = data['resolvedAt'] as Timestamp?;
+          if (resolvedAt != null && resolvedAt.toDate().isAfter(weekStart)) {
+            resolvedThisWeekCount++;
+          }
+        } else if (status == 'onHold') {
+          onHoldCount++;
+          activeCount++;
+        } else if (status == 'inProgress') {
+          activeCount++;
+        }
+      }
+      
+      print('📊 Resueltos esta semana: $resolvedThisWeekCount');
+      print('📊 Total resueltos: $totalResolvedCount');
+      print('📊 En espera: $onHoldCount');
+      print('📊 Activos (inProgress + onHold): $activeCount');
+      
+      // Debug de cada incidente activo
+      for (var doc in allAssignedQuery.docs) {
+        final data = doc.data();
+        final status = data['status'] as String?;
+        if (status == 'inProgress' || status == 'onHold') {
+          print('   📄 Incidente activo ${doc.id}:');
+          print('      - Estado: $status');
+          print('      - AssignedTo: ${data['assignedTo']}');
+        }
+      }
 
-      // Total de incidentes resueltos (histórico)
-      final totalResolvedQuery = await _firestore
-          .collection('incidents')
-          .where('assignedTo.uid', isEqualTo: supportUid)
-          .where('status', isEqualTo: 'resolved')
-          .get();
-
-      // Incidentes cancelados
-      final cancelledQuery = await _firestore
-          .collection('incidents')
-          .where('assignedTo.uid', isEqualTo: supportUid)
-          .where('status', isEqualTo: 'cancelled')
-          .get();
-
-      // Incidentes en espera
-      final onHoldQuery = await _firestore
-          .collection('incidents')
-          .where('assignedTo.uid', isEqualTo: supportUid)
-          .where('status', isEqualTo: 'onHold')
-          .get();
-
-      // Incidentes activos (en progreso)
-      final activeQuery = await _firestore
-          .collection('incidents')
-          .where('assignedTo.uid', isEqualTo: supportUid)
-          .where('status', isEqualTo: 'inProgress')
-          .get();
-
-      return {
-        'resolvedThisWeek': resolvedThisWeekQuery.docs.length,
-        'totalResolved': totalResolvedQuery.docs.length,
-        'cancelled': cancelledQuery.docs.length,
-        'onHold': onHoldQuery.docs.length,
-        'active': activeQuery.docs.length,
+      final result = {
+        'resolvedThisWeek': resolvedThisWeekCount,
+        'totalResolved': totalResolvedCount,
+        'onHold': onHoldCount,
+        'active': activeCount,
       };
+      
+      print('📈 RESULTADO FINAL ESTADÍSTICAS: $result');
+      return result;
     } catch (e) {
+      print('❌ ERROR en getSupportUserStatistics: $e');
       return {
         'resolvedThisWeek': 0,
         'totalResolved': 0,

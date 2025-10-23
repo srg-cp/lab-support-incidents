@@ -17,12 +17,34 @@ class IncidentProvider with ChangeNotifier {
 
   // Obtener incidentes con filtro
   void getIncidents({String? status, String? labName}) {
-    _incidentService.getIncidents(status: status, labName: labName).listen(
+    Stream<QuerySnapshot> stream;
+    
+    if (status == 'pending' && labName == null) {
+      // Usar método específico para incidentes pendientes
+      stream = _incidentService.getPendingIncidentsSimple();
+    } else if (status == null && labName == null) {
+      // Usar método específico para todos los incidentes
+      stream = _incidentService.getAllIncidentsSimple();
+    } else {
+      // Para casos complejos, usar el método genérico
+      stream = _incidentService.getIncidents(status: status, labName: labName);
+    }
+    
+    stream.listen(
       (snapshot) {
         _incidents = snapshot.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
           return Incident.fromFirestore(doc.id, data);
         }).toList();
+        
+        // Filtrar manualmente por laboratorio si es necesario
+        if (labName != null) {
+          _incidents = _incidents.where((incident) => incident.labName == labName).toList();
+        }
+        
+        // Ordenar manualmente por fecha
+        _incidents.sort((a, b) => b.reportedAt.compareTo(a.reportedAt));
+        
         notifyListeners();
       },
       onError: (error) {
@@ -84,7 +106,7 @@ class IncidentProvider with ChangeNotifier {
 
   // Obtener incidentes del usuario actual
   void getUserIncidents(String uid) {
-    _incidentService.getUserIncidents(uid).listen(
+    _incidentService.getUserIncidentsSimple(uid).listen(
       (snapshot) {
         _incidents = snapshot.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
@@ -137,14 +159,18 @@ class IncidentProvider with ChangeNotifier {
     }
   }
 
-  // Obtener incidentes asignados a un usuario de soporte
-  void getSupportIncidents(String supportUid, {String? status}) {
-    _incidentService.getIncidents(assignedToUid: supportUid, status: status).listen(
+  // Obtener incidentes pendientes
+  void getPendingIncidents() {
+    _incidentService.getPendingIncidentsSimple().listen(
       (snapshot) {
         _incidents = snapshot.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
           return Incident.fromFirestore(doc.id, data);
         }).toList();
+        
+        // Ordenar manualmente por fecha
+        _incidents.sort((a, b) => b.reportedAt.compareTo(a.reportedAt));
+        
         notifyListeners();
       },
       onError: (error) {
@@ -154,6 +180,29 @@ class IncidentProvider with ChangeNotifier {
     );
   }
 
+  // Obtener incidentes asignados a un usuario de soporte
+  void getSupportIncidents(String supportUid) {
+    _incidentService.getAssignedIncidentsSimple(supportUid).listen(
+      (snapshot) {
+        _incidents = snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return Incident.fromFirestore(doc.id, data);
+        }).toList();
+        
+        // Ordenar manualmente por fecha
+        _incidents.sort((a, b) => b.reportedAt.compareTo(a.reportedAt));
+        
+        notifyListeners();
+      },
+      onError: (error) {
+        _error = error.toString();
+        notifyListeners();
+      },
+    );
+  }
+
+
+
   // Obtener estadísticas del usuario de soporte
   Future<Map<String, int>> getSupportUserStatistics(String supportUid) async {
     try {
@@ -162,6 +211,16 @@ class IncidentProvider with ChangeNotifier {
       _error = e.toString();
       notifyListeners();
       return {};
+    }
+  }
+
+  // Debug: Imprimir información de incidentes
+  void debugPrintIncidents() {
+    for (var incident in _incidents) {
+      print('📄 Incidente ${incident.id}:');
+      print('   - Estado: ${incident.status}');
+      print('   - Asignado a: ${incident.assignedTo?.name} (${incident.assignedTo?.uid})');
+      print('   - Lab: ${incident.labName}');
     }
   }
 }

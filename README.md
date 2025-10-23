@@ -83,6 +83,43 @@ dependencies {
 2. Selecciona modo **Producción** o **Prueba**
 3. Elige la ubicación más cercana (preferiblemente `southamerica-east1`)
 
+#### 4.3 Configurar Índices Compuestos
+Para que las consultas funcionen correctamente, necesitas crear estos índices compuestos en Firestore:
+
+1. Ve a **Firestore Database** → **Índices** → **Índices compuestos**
+2. Crea los siguientes índices:
+
+**Índice 1: Para incidentes asignados a usuarios de soporte**
+- Colección: `incidents`
+- Campos:
+  - `assignedTo.uid` (Ascendente)
+  - `reportedAt` (Descendente)
+
+**Índice 2: Para incidentes por estado (ej: pendientes)**
+- Colección: `incidents`
+- Campos:
+  - `status` (Ascendente)
+  - `reportedAt` (Descendente)
+
+**Índice 3: Para incidentes por laboratorio**
+- Colección: `incidents`
+- Campos:
+  - `labName` (Ascendente)
+  - `reportedAt` (Descendente)
+
+**Índice 4: Para incidentes reportados por usuario**
+- Colección: `incidents`
+- Campos:
+  - `reportedBy.uid` (Ascendente)
+  - `reportedAt` (Descendente)
+
+**Creación automática de índices:**
+- Ejecuta la app y cuando aparezca un error de índice faltante, haz clic en el enlace proporcionado en la consola
+- Esto te llevará directamente a Firebase Console para crear el índice automáticamente
+- Espera unos minutos para que el índice se construya antes de volver a probar
+
+**Proyecto ID actual:** `upt-lab-support-incidents`
+
 **Reglas de seguridad sugeridas para Firestore:**
 ```javascript
 rules_version = '2';
