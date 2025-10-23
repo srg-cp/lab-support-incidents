@@ -11,19 +11,19 @@ dependencies:
     sdk: flutter
 
   # Firebase Core
-  firebase_core: ^2.27.0
+  firebase_core: ^2.32.0
   
   # Firebase Authentication
-  firebase_auth: ^4.17.8
+  firebase_auth: ^4.20.0
   
   # Google Sign In
   google_sign_in: ^6.2.1
   
   # Cloud Firestore (para almacenar incidentes)
-  cloud_firestore: ^4.15.8
+  cloud_firestore: ^4.17.5
   
   # Firebase Storage (para almacenar imágenes/videos)
-  firebase_storage: ^11.6.9
+  firebase_storage: ^11.7.7
   
   # Image Picker (para capturar fotos/videos)
   image_picker: ^1.0.7
@@ -57,8 +57,8 @@ flutter:
   # Assets - Incluye el icono personalizado y otros recursos
   assets:
     - assets/
-    - assets/images/
-    - assets/icons/
+  # - assets/images/
+  # - assets/icons/
   
   # Fuentes personalizadas (opcional)
   # fonts:

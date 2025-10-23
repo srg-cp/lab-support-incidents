@@ -136,7 +136,7 @@ class AuthService {
   }
 
   // Sign in con email y contraseña (para admin/soporte)
-  Future<UserCredential> signInWithEmailPassword(String email, String password) async {
+  Future<Map<String, dynamic>> signInWithEmailPassword(String email, String password) async {
     print('🔐 Iniciando login para: $email');
     
     try {
@@ -149,7 +149,10 @@ class AuthService {
       
       print('✅ ÉXITO: Usuario encontrado en Firebase Auth');
       await _updateLastLogin(userCredential.user!.uid);
-      return userCredential;
+      return {
+        'userCredential': userCredential,
+        'wasActivated': false,
+      };
       
     } on FirebaseAuthException catch (e) {
       print('❌ Firebase Auth falló: ${e.code}');
@@ -180,7 +183,10 @@ class AuthService {
           
           await _updateLastLogin(userCredential.user!.uid);
           print('✅ ÉXITO TOTAL: Usuario activado y logueado');
-          return userCredential;
+          return {
+            'userCredential': userCredential,
+            'wasActivated': true,
+          };
           
         } else {
           print('❌ NO ENCONTRADO: Usuario no existe en ningún lado');
@@ -389,9 +395,6 @@ class AuthService {
       await _firestore.collection('pending_users').doc(tempUid).delete();
       print('✅ Usuario pendiente eliminado');
       
-      // Cerrar sesión inmediatamente para que el login normal pueda proceder
-      await _auth.signOut();
-      
       print('✅ Usuario activado exitosamente');
       
     } catch (e) {
@@ -444,9 +447,6 @@ class AuthService {
             // Eliminar usuario pendiente
             await _firestore.collection('pending_users').doc(tempUid).delete();
             print('✅ Usuario pendiente eliminado');
-            
-            // Cerrar sesión para que el login normal pueda proceder
-            await _auth.signOut();
             
             print('✅ Usuario activado exitosamente (ya existía en Auth)');
           }

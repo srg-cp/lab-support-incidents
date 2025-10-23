@@ -23,7 +23,7 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.16.0'
+        flutter-version: '3.24.3'
         channel: 'stable'
 
     - name: Disable Flutter analytics
@@ -32,8 +32,14 @@ jobs:
     - name: Accept Android licenses
       run: yes | flutter doctor --android-licenses || true
 
+    - name: Clean Flutter
+      run: flutter clean
+
     - name: Get dependencies
       run: flutter pub get
+
+    - name: Update dependencies
+      run: flutter pub upgrade
 
     - name: Setup custom app icon (if upt.ico exists)
       run: |

@@ -1,36 +1,71 @@
-name: flutter_lab_support_incidents
+name: upt_lab_incidents
 description: Sistema de Gestión de Incidentes de Laboratorio - Universidad Privada de Tacna
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.0+1
 
 environment:
-  # sdk: '>=3.0.0 <4.0.0'
-  sdk: ^3.9.2
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  
-  # Firebase dependencies
-  firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  firebase_database: ^11.1.4
-  firebase_messaging: ^15.1.3
-  cloud_firestore: ^5.4.3
 
-  # Google Sign-In
+  # Firebase Core
+  firebase_core: ^2.27.0
+  
+  # Firebase Authentication
+  firebase_auth: ^4.17.8
+  
+  # Google Sign In
   google_sign_in: ^6.2.1
   
-  # Additional useful packages
-  shared_preferences: ^2.3.2
+  # Cloud Firestore (para almacenar incidentes)
+  cloud_firestore: ^4.15.8
+  
+  # Firebase Storage (para almacenar imágenes/videos)
+  firebase_storage: ^11.6.9
+  
+  # Image Picker (para capturar fotos/videos)
+  image_picker: ^1.0.7
+  
+  # Permisos
+  permission_handler: ^11.0.1
+  
+  # Iconos de Cupertino
+  cupertino_icons: ^1.0.6
+  
+  # Manejo de estados
+  provider: ^6.1.1
+  
+  # Para formatear fechas
+  intl: ^0.18.1
+  
+  # Conectividad (verificar internet)
+  connectivity_plus: ^5.0.2
 
-  # Notifications
-  flutter_local_notifications: ^17.2.3
+  # Cache de imágenes
+  cached_network_image: ^3.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
+  
+  # Assets - Incluye el icono personalizado y otros recursos
+  assets:
+    - assets/
+  # - assets/images/
+  # - assets/icons/
+  
+  # Fuentes personalizadas (opcional)
+  # fonts:
+  #   - family: Poppins
+  #     fonts:
+  #       - asset: fonts/Poppins-Regular.ttf
+  #       - asset: fonts/Poppins-Medium.ttf
+  #         weight: 500
+  #       - asset: fonts/Poppins-Bold.ttf
+  #         weight: 700

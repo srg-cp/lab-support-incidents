@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
 import '../services/auth_service.dart';
 import '../utils/setup_admin.dart';
+import '../providers/activation_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -82,23 +84,49 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final userCredential = await _authService.signInWithEmailPassword(
+      final result = await _authService.signInWithEmailPassword(
         _emailController.text.trim(),
         _passwordController.text,
       );
+      
+      final userCredential = result['userCredential'];
+      final wasActivated = result['wasActivated'] ?? false;
       
       // Login exitoso - verificar que el usuario esté autenticado
       if (userCredential.user != null && mounted) {
         print('✅ Login con email exitoso para: ${userCredential.user!.email}');
         
-        // Verificar y reparar documento de usuario de forma asíncrona
-        // No esperar a que termine para evitar bloquear la navegación
-        _authService.verifyAndRepairUserDocument().then((_) {
-          print('✅ Documento de usuario verificado/reparado');
-        }).catchError((e) {
-          print('⚠️ Error al verificar documento de usuario: $e');
-          // No mostrar error al usuario, solo loggear
-        });
+        // Si el usuario fue activado, mostrar pantalla de activación brevemente
+        if (wasActivated) {
+          print('🎉 Usuario activado desde estado pendiente');
+          
+          // Activar el estado de activación
+          if (mounted) {
+            Provider.of<ActivationProvider>(context, listen: false).setActivating(true);
+          }
+          
+          // Esperar un momento para que el usuario vea la pantalla de activación
+          await Future.delayed(const Duration(seconds: 2));
+          
+          // Verificar y reparar documento de usuario
+          await _authService.verifyAndRepairUserDocument();
+          
+          // Desactivar el estado de activación
+          if (mounted) {
+            Provider.of<ActivationProvider>(context, listen: false).setActivating(false);
+          }
+          
+          // La navegación se manejará automáticamente por el AuthWrapper
+          return;
+        } else {
+          // Usuario normal, verificar documento de forma asíncrona
+          _authService.verifyAndRepairUserDocument().then((_) {
+            print('✅ Documento de usuario verificado/reparado');
+          }).catchError((e) {
+            print('⚠️ Error al verificar documento de usuario: $e');
+            // No mostrar error al usuario, solo loggear
+          });
+        }
         
         // La navegación se manejará automáticamente por el AuthWrapper
         setState(() => _isLoading = false);

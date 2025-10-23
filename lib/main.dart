@@ -8,8 +8,10 @@ import 'screens/login_screen.dart';
 import 'screens/student_home_screen.dart';
 import 'screens/admin_home_screen.dart';
 import 'screens/support_home_screen.dart';
+import 'screens/account_activation_screen.dart';
 import 'services/auth_service.dart';
 import 'providers/incident_provider.dart';
+import 'providers/activation_provider.dart';
 import 'utils/colors.dart';
 
 void main() async {
@@ -35,6 +37,7 @@ class LabIncidentsApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => IncidentProvider()),
+        ChangeNotifierProvider(create: (_) => ActivationProvider()),
       ],
       child: MaterialApp(
         title: 'UPT Lab Incidents',
@@ -74,7 +77,14 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
+    return Consumer<ActivationProvider>(
+      builder: (context, activationProvider, child) {
+        // Si está en proceso de activación, mostrar pantalla de activación
+        if (activationProvider.isActivating) {
+          return const AccountActivationScreen();
+        }
+        
+        return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -200,6 +210,8 @@ class AuthWrapper extends StatelessWidget {
         }
         
         return const LoginScreen();
+        },
+      );
       },
     );
   }
