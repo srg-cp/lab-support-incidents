@@ -6,6 +6,7 @@ import '../widgets/incident_card.dart';
 import '../services/incident_service.dart';
 import '../services/lab_service.dart';
 import '../services/computer_service.dart';
+import '../utils/setup_computers.dart';
 import 'user_management_screen.dart';
 import 'students_screen.dart';
 import 'incident_resolution_screen.dart';
@@ -563,15 +564,74 @@ class _AdminLabManagementState extends State<AdminLabManagement> {
     }
   }
 
+  Future<void> _initializeComputers() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Inicializar Computadoras HP'),
+        content: const Text(
+          'Esto creará 20 computadoras HP para cada laboratorio (A, B, C, D, E, F) con datos realistas.\n\n'
+          '¿Estás seguro de que deseas continuar?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+            ),
+            child: const Text('Inicializar', style: TextStyle(color: AppColors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      
+      try {
+        await ComputerSetup.setupComputers();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Computadoras HP inicializadas exitosamente'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+        
+        await _loadLabsData(); // Recargar datos
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ Error al inicializar computadoras: $e'),
+              backgroundColor: AppColors.danger,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadLabsData,
-      child: ListView(
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadLabsData,
+        child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           Row(
@@ -746,6 +806,15 @@ class _AdminLabManagementState extends State<AdminLabManagement> {
             );
           }).toList(),
         ],
+      ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _initializeComputers,
+        backgroundColor: AppColors.accentGold,
+        foregroundColor: AppColors.white,
+        icon: const Icon(Icons.computer),
+        label: const Text('Inicializar HP'),
+        tooltip: 'Inicializar 20 computadoras HP por laboratorio',
       ),
     );
   }

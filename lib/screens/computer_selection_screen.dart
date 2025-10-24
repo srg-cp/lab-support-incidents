@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
 import '../services/incident_service.dart';
+import '../services/computer_service.dart';
+import '../models/computer_model.dart';
 import 'incident_detail_screen.dart';
 
 enum ComputerStatus { available, hasIncident, disabled }
@@ -19,7 +22,9 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
   final Set<int> _selectedComputers = {};
   final TransformationController _transformationController = TransformationController();
   final IncidentService _incidentService = IncidentService();
+  final ComputerService _computerService = ComputerService();
   Map<int, String> _computersWithIncidents = {};
+  List<Computer> _availableComputers = [];
   bool _isLoading = true;
   
   // Configuración inicial: 20 computadoras de estudiantes + 1 de docente
@@ -34,12 +39,30 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
 
   Future<void> _loadComputerStatuses() async {
     try {
+      // Cargar computadoras desde la base de datos
+      final computersSnapshot = await FirebaseFirestore.instance
+          .collection('computers')
+          .where('labName', isEqualTo: widget.labName)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      final computers = computersSnapshot.docs
+          .map((doc) => Computer.fromMap(doc.data()))
+          .toList();
+
+      // Ordenar por número de computadora
+      computers.sort((a, b) => a.computerNumber.compareTo(b.computerNumber));
+
+      // Cargar incidentes activos
       final computersWithIncidents = await _incidentService.getComputersWithActiveIncidents(widget.labName);
+      
       setState(() {
+        _availableComputers = computers;
         _computersWithIncidents = computersWithIncidents;
         _isLoading = false;
       });
     } catch (e) {
+      print('Error cargando computadoras: $e');
       setState(() {
         _isLoading = false;
       });
@@ -47,10 +70,27 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
   }
 
   ComputerStatus _getComputerStatus(int computerNumber) {
+    // Verificar si la computadora existe en la base de datos
+    final computerExists = _availableComputers.any((c) => c.computerNumber == computerNumber);
+    
+    if (!computerExists) {
+      return ComputerStatus.disabled; // No existe en la BD
+    }
+    
     if (_computersWithIncidents.containsKey(computerNumber)) {
       return ComputerStatus.hasIncident;
     }
+    
     return ComputerStatus.available;
+  }
+
+  // Método para obtener información de la computadora desde la BD
+  Computer? _getComputerInfo(int computerNumber) {
+    try {
+      return _availableComputers.firstWhere((c) => c.computerNumber == computerNumber);
+    } catch (e) {
+      return null;
+    }
   }
 
   @override
@@ -63,6 +103,14 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
       appBar: AppBar(
         title: Text('Laboratorio ${widget.labName}'),
         actions: [
+          IconButton(
+            icon: Icon(Icons.info_outline, color: AppColors.primaryBlue),
+            onPressed: _showLabComputersInfo,
+          ),
+          IconButton(
+            icon: Icon(Icons.refresh, color: AppColors.primaryBlue),
+            onPressed: _loadComputerStatuses,
+          ),
           if (_selectedComputers.isNotEmpty)
             Center(
               child: Padding(
@@ -189,17 +237,7 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
                 ],
               ),
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => IncidentDetailScreen(
-                        labName: widget.labName,
-                        selectedComputers: _selectedComputers.toList(),
-                      ),
-                    ),
-                  );
-                },
+                onPressed: _onContinue,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 56),
                 ),
@@ -326,7 +364,12 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
     IconData iconData;
     bool isInteractable = true;
 
-    if (computerStatus == ComputerStatus.hasIncident) {
+    if (computerStatus == ComputerStatus.disabled) {
+      gradientColors = [AppColors.lightGray, AppColors.lightGray.withOpacity(0.8)];
+      shadowColor = AppColors.lightGray;
+      iconData = Icons.block;
+      isInteractable = false;
+    } else if (computerStatus == ComputerStatus.hasIncident) {
       gradientColors = [AppColors.danger, AppColors.danger.withOpacity(0.8)];
       shadowColor = AppColors.danger;
       iconData = Icons.error;
@@ -342,24 +385,7 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
     }
     
     return GestureDetector(
-      onTap: isInteractable ? () {
-        setState(() {
-          if (isSelected) {
-            _selectedComputers.remove(index);
-          } else {
-            _selectedComputers.add(index);
-          }
-        });
-      } : () {
-        // Mostrar mensaje para computadoras con incidentes
-        CustomModal.show(
-          context,
-          type: ModalType.warning,
-          title: 'Computadora No Disponible',
-          message: 'La PC $index ya tiene un incidente activo. '
-              'Espera a que se resuelva antes de reportar un nuevo problema.',
-        );
-      },
+      onTap: () => _onComputerTap(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: computerSize,
@@ -462,6 +488,196 @@ class _ComputerSelectionScreenState extends State<ComputerSelectionScreen> {
     double baseSpacing = isTablet ? 20.0 : 12.0;
     final screenFactor = (screenSize.width / 400).clamp(0.7, 1.3);
     return baseSpacing * screenFactor;
+  }
+
+  void _onComputerTap(int computerNumber) {
+    final status = _getComputerStatus(computerNumber);
+    final computerInfo = _getComputerInfo(computerNumber);
+    
+    if (status == ComputerStatus.disabled) {
+      _showComputerNotFoundDialog(computerNumber);
+    } else if (status == ComputerStatus.hasIncident) {
+      _showIncidentInfo(computerNumber, computerInfo);
+    } else if (status == ComputerStatus.available) {
+      setState(() {
+        if (_selectedComputers.contains(computerNumber)) {
+          _selectedComputers.remove(computerNumber);
+        } else {
+          _selectedComputers.add(computerNumber);
+        }
+      });
+    }
+  }
+
+  void _showComputerNotFoundDialog(int computerNumber) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Computadora no encontrada'),
+          content: Text(
+            'La computadora #$computerNumber no existe en la base de datos del laboratorio ${widget.labName}.\n\n'
+            'Por favor, contacte al administrador para agregar esta computadora al sistema.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Entendido'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showLabComputersInfo() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Computadoras del Laboratorio ${widget.labName}'),
+          content: Container(
+            width: double.maxFinite,
+            height: 400,
+            child: _availableComputers.isEmpty
+                ? Center(
+                    child: Text(
+                      'No hay computadoras registradas en este laboratorio.\n\n'
+                      'Contacte al administrador para inicializar las computadoras.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _availableComputers.length,
+                    itemBuilder: (context, index) {
+                      final computer = _availableComputers[index];
+                      final hasIncident = _computersWithIncidents.containsKey(computer.computerNumber);
+                      
+                      return Card(
+                        margin: EdgeInsets.symmetric(vertical: 4),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: hasIncident ? Colors.red : Colors.green,
+                            child: Text(
+                              '${computer.computerNumber}',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          title: Text('PC ${computer.computerNumber}'),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('CPU: ${computer.cpu.brand} ${computer.cpu.model}'),
+                              Text('Monitor: ${computer.monitor.brand} ${computer.monitor.model}'),
+                              if (hasIncident)
+                                Text(
+                                  'Con incidente activo',
+                                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                                ),
+                            ],
+                          ),
+                          trailing: Icon(
+                            hasIncident ? Icons.error : Icons.check_circle,
+                            color: hasIncident ? Colors.red : Colors.green,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showIncidentInfo(int computerNumber, Computer? computerInfo) {
+    final incidentId = _computersWithIncidents[computerNumber];
+    
+    String computerDetails = '';
+    if (computerInfo != null) {
+      computerDetails = '\n\nDetalles de la computadora:'
+          '\n• CPU: ${computerInfo.cpu.brand} ${computerInfo.cpu.model}'
+          '\n• Monitor: ${computerInfo.monitor.brand} ${computerInfo.monitor.model}'
+          '\n• Mouse: ${computerInfo.mouse.brand} ${computerInfo.mouse.model}'
+          '\n• Teclado: ${computerInfo.keyboard.brand} ${computerInfo.keyboard.model}';
+      
+      computerDetails += '\n\nNúmeros de serie:'
+          '\n• CPU: ${computerInfo.cpu.serialNumber}'
+          '\n• Monitor: ${computerInfo.monitor.serialNumber}'
+          '\n• Mouse: ${computerInfo.mouse.serialNumber}'
+          '\n• Teclado: ${computerInfo.keyboard.serialNumber}';
+    }
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Computadora con incidente'),
+          content: SingleChildScrollView(
+            child: Text(
+              'La computadora #$computerNumber tiene un incidente activo.\n'
+              'ID del incidente: $incidentId\n\n'
+              'No se puede seleccionar para reportar nuevos incidentes.'
+              '$computerDetails'
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Entendido'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _onContinue() {
+    if (_selectedComputers.isNotEmpty) {
+      // Validar que todas las computadoras seleccionadas existan en la BD
+      final invalidComputers = _selectedComputers.where((computerNumber) {
+        return !_availableComputers.any((c) => c.computerNumber == computerNumber);
+      }).toList();
+
+      if (invalidComputers.isNotEmpty) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Error de selección'),
+              content: Text(
+                'Las siguientes computadoras no existen en la base de datos:\n'
+                '${invalidComputers.map((n) => '#$n').join(', ')}\n\n'
+                'Por favor, seleccione solo computadoras válidas.'
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Entendido'),
+                ),
+              ],
+            );
+          },
+        );
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => IncidentDetailScreen(
+            labName: widget.labName,
+            selectedComputers: _selectedComputers.toList(),
+          ),
+        ),
+      );
+    }
   }
 
   @override

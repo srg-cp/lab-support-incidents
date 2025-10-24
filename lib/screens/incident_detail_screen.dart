@@ -5,15 +5,18 @@ import 'dart:io';
 import '../utils/colors.dart';
 import '../widgets/custom_modal.dart';
 import '../providers/incident_provider.dart';
+import '../models/computer_model.dart';
 
 class IncidentDetailScreen extends StatefulWidget {
   final String labName;
   final List<int> selectedComputers;
+  final List<Computer>? computersInfo;
 
   const IncidentDetailScreen({
     Key? key,
     required this.labName,
     required this.selectedComputers,
+    this.computersInfo,
   }) : super(key: key);
 
   @override
