@@ -4,9 +4,13 @@ import '../utils/colors.dart';
 import '../models/incident_model.dart';
 import '../widgets/incident_card.dart';
 import '../services/incident_service.dart';
+import '../services/lab_service.dart';
+import '../services/computer_service.dart';
 import 'user_management_screen.dart';
 import 'students_screen.dart';
 import 'incident_resolution_screen.dart';
+import 'add_computer_screen.dart';
+import 'lab_detail_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({Key? key}) : super(key: key);
@@ -495,119 +499,254 @@ class AdminLabManagement extends StatefulWidget {
 }
 
 class _AdminLabManagementState extends State<AdminLabManagement> {
-  final Map<String, int> labComputers = {
-    'A': 20,
-    'B': 20,
-    'C': 20,
-    'D': 20,
-    'E': 20,
-    'F': 20,
-  };
+  final LabService _labService = LabService();
+  final ComputerService _computerService = ComputerService();
+  Map<String, Map<String, dynamic>> _labsData = {};
+  bool _isLoading = true;
 
-  void _addComputer(String lab) {
-    setState(() {
-      labComputers[lab] = (labComputers[lab] ?? 20) + 1;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Computadora añadida al Laboratorio $lab'),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  @override
+  void initState() {
+    super.initState();
+    _loadLabsData();
+  }
+
+  Future<void> _loadLabsData() async {
+    try {
+      setState(() => _isLoading = true);
+      
+      // Inicializar laboratorios por defecto si no existen
+      await _labService.initializeDefaultLabs();
+      
+      // Cargar estadísticas de laboratorios
+      final statistics = await _labService.getAllLabsStatistics();
+      
+      setState(() {
+        _labsData = statistics;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar laboratorios: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _navigateToAddComputer(String labName) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddComputerScreen(labName: labName),
       ),
     );
+    
+    if (result == true) {
+      _loadLabsData(); // Recargar datos después de agregar
+    }
+  }
+
+  Future<void> _navigateToLabDetails(String labName) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LabDetailScreen(labName: labName),
+      ),
+    );
+    
+    if (result == true) {
+      _loadLabsData(); // Recargar datos después de modificaciones
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        const Text(
-          'Gestión de Laboratorios',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textDark,
-          ),
-        ),
-        const SizedBox(height: 24),
-        ...labComputers.entries.map((entry) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadLabsData,
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Gestión de Laboratorios',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppColors.primaryBlue, AppColors.lightBlue],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
+              IconButton(
+                onPressed: _loadLabsData,
+                icon: const Icon(Icons.refresh),
+                color: AppColors.primaryBlue,
+                tooltip: 'Actualizar',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Gestiona las computadoras de cada laboratorio con información detallada de componentes',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textLight,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ..._labsData.entries.map((entry) {
+            final labName = entry.key;
+            final labData = entry.value;
+            final computerCount = labData['actualComputerCount'] ?? 0;
+            final hasRegisteredComputers = labData['hasRegisteredComputers'] ?? false;
+            
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                    child: Center(
-                      child: Text(
-                        entry.key,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          'Laboratorio ${entry.key}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDark,
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [AppColors.primaryBlue, AppColors.lightBlue],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              labName,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.white,
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${entry.value} computadoras + 1 docente',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textLight,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Laboratorio $labName',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$computerCount computadoras registradas',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: hasRegisteredComputers 
+                                      ? AppColors.success 
+                                      : AppColors.textLight,
+                                  fontWeight: hasRegisteredComputers 
+                                      ? FontWeight.w600 
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              if (!hasRegisteredComputers)
+                                Text(
+                                  'Sin computadoras registradas',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.warning,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
                           ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () => _navigateToAddComputer(labName),
+                              icon: const Icon(Icons.add_circle),
+                              color: AppColors.accentGold,
+                              iconSize: 28,
+                              tooltip: 'Agregar PC',
+                            ),
+                            IconButton(
+                              onPressed: () => _navigateToLabDetails(labName),
+                              icon: const Icon(Icons.list_alt),
+                              color: AppColors.primaryBlue,
+                              iconSize: 28,
+                              tooltip: 'Ver detalles',
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => _addComputer(entry.key),
-                    icon: const Icon(Icons.add_circle),
-                    color: AppColors.accentGold,
-                    iconSize: 32,
-                  ),
-                ],
+                    if (hasRegisteredComputers) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.skyBlue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.skyBlue.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: AppColors.primaryBlue,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Toca "Ver detalles" para gestionar las computadoras existentes',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.primaryBlue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-          );
-        }).toList(),
-      ],
+            );
+          }).toList(),
+        ],
+      ),
     );
   }
 }

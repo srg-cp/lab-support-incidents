@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'computer_service.dart';
 
 class LabService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ComputerService _computerService = ComputerService();
 
   // Obtener todos los laboratorios
   Stream<QuerySnapshot> getLabs() {
@@ -13,7 +15,26 @@ class LabService {
     return _firestore.collection('labs').doc(labName).get();
   }
 
-  // Actualizar número de computadoras
+  // Obtener información completa del laboratorio con computadoras
+  Future<Map<String, dynamic>> getLabWithComputers(String labName) async {
+    try {
+      final labDoc = await getLab(labName);
+      final computerCounts = await _computerService.getComputerCountByLab();
+      
+      final labData = labDoc.exists ? labDoc.data() as Map<String, dynamic> : {};
+      final actualComputerCount = computerCounts[labName] ?? 0;
+      
+      return {
+        ...labData,
+        'actualComputerCount': actualComputerCount,
+        'registeredComputers': actualComputerCount,
+      };
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Actualizar número de computadoras (mantener compatibilidad)
   Future<void> updateLabComputers(String labName, int newCount) async {
     try {
       await _firestore.collection('labs').doc(labName).update({
@@ -51,6 +72,48 @@ class LabService {
       if (!doc.exists) {
         await createLab(lab, 20);
       }
+    }
+  }
+
+  // Obtener estadísticas de todos los laboratorios
+  Future<Map<String, Map<String, dynamic>>> getAllLabsStatistics() async {
+    try {
+      final labsSnapshot = await _firestore.collection('labs').get();
+      final computerCounts = await _computerService.getComputerCountByLab();
+      
+      final statistics = <String, Map<String, dynamic>>{};
+      
+      for (final doc in labsSnapshot.docs) {
+        final labData = doc.data();
+        final labName = labData['name'] as String;
+        final actualCount = computerCounts[labName] ?? 0;
+        
+        statistics[labName] = {
+          ...labData,
+          'actualComputerCount': actualCount,
+          'hasRegisteredComputers': actualCount > 0,
+        };
+      }
+      
+      return statistics;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Sincronizar conteo de computadoras
+  Future<void> syncComputerCounts() async {
+    try {
+      final computerCounts = await _computerService.getComputerCountByLab();
+      
+      for (final entry in computerCounts.entries) {
+        final labName = entry.key;
+        final count = entry.value;
+        
+        await updateLabComputers(labName, count);
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 }
