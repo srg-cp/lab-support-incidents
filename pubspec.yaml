@@ -1,7 +1,7 @@
 name: upt_lab_incidents
 description: Sistema de Gestión de Incidentes de Laboratorio - Universidad Privada de Tacna
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
