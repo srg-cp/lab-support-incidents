@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "649968119165-nfbsqgvlgbcquk6r45u0lbs5rc8llvb4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.upt.flutter_lab_support_incidents",
+            "certificate_hash": "f495861eaff4e168b8a9865cfc3fa7a182fdc4bc"
+          }
+        },
+        {
           "client_id": "649968119165-oq4i6ag378v3r9eln5r47sskef7voehi.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
