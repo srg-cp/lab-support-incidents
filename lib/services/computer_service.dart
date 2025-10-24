@@ -13,6 +13,14 @@ class ComputerService {
         .snapshots();
   }
 
+  // Obtener todas las computadoras activas (para conteos en tiempo real)
+  Stream<QuerySnapshot> getComputersStream() {
+    return _firestore
+        .collection('computers')
+        .where('isActive', isEqualTo: true)
+        .snapshots();
+  }
+
   // Obtener una computadora específica
   Future<DocumentSnapshot> getComputer(String computerId) {
     return _firestore.collection('computers').doc(computerId).get();
@@ -206,6 +214,35 @@ class ComputerService {
       return counts;
     } catch (e) {
       print('Error al obtener estadísticas: $e');
+      return {};
+    }
+  }
+
+  // Obtener conteos de equipos por tipo y laboratorio
+  Future<Map<String, Map<String, int>>> getEquipmentCountsByLab() async {
+    try {
+      final snapshot = await _firestore
+          .collection('computers')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      final counts = <String, Map<String, int>>{};
+      
+      for (final doc in snapshot.docs) {
+        final computer = Computer.fromMap(doc.data());
+        final labName = computer.labName;
+        final equipmentType = computer.equipmentType.name;
+        
+        if (!counts.containsKey(labName)) {
+          counts[labName] = {'student': 0, 'teacher': 0, 'projector': 0};
+        }
+        
+        counts[labName]![equipmentType] = (counts[labName]![equipmentType] ?? 0) + 1;
+      }
+
+      return counts;
+    } catch (e) {
+      print('Error al obtener conteos de equipos: $e');
       return {};
     }
   }

@@ -151,7 +151,7 @@ class IncidentProvider with ChangeNotifier {
   }
 
   // Resolver incidente
-  Future<bool> resolveIncident({
+  Future<Map<String, dynamic>> resolveIncident({
     required String incidentId,
     required String status,
     String? notes,
@@ -162,20 +162,31 @@ class IncidentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      await _incidentService.resolveIncident(
+      final pdfFile = await _incidentService.resolveIncident(
         incidentId: incidentId,
         status: status,
         notes: notes,
         resolutionFile: resolutionFile,
       );
+      
       _isLoading = false;
       notifyListeners();
-      return true;
+      
+      return {
+        'success': true,
+        'pdfFile': pdfFile,
+        'message': status == 'resolved' && pdfFile != null 
+            ? 'Incidente resuelto exitosamente. PDF generado automáticamente.'
+            : 'Incidente actualizado exitosamente.'
+      };
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
-      return false;
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
     }
   }
 

@@ -3,11 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
 import 'storage_service.dart';
 import '../utils/error_handler.dart';
+import '../models/computer_model.dart';
+import 'computer_service.dart';
+import 'pdf_service.dart';
+import '../models/incident_model.dart';
 
 class IncidentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final StorageService _storageService = StorageService();
+  final ComputerService _computerService = ComputerService();
 
   // Verificar computadoras con incidentes activos
   Future<Map<int, String>> getComputersWithActiveIncidents(String labName) async {
@@ -268,7 +273,7 @@ class IncidentService {
   }
 
   // Resolver incidente
-  Future<void> resolveIncident({
+  Future<File?> resolveIncident({
     required String incidentId,
     required String status, // 'resolved', 'cancelled', 'onHold'
     String? notes,
@@ -314,8 +319,62 @@ class IncidentService {
       }
 
       await _firestore.collection('incidents').doc(incidentId).update(updateData);
+
+      // Generar PDF automáticamente si el incidente se resuelve
+      if (status == 'resolved') {
+        return await _generateResolutionPdf(incidentId);
+      }
+
+      return null;
     } catch (e) {
       rethrow;
+    }
+  }
+
+  // Método privado para generar el PDF de resolución
+  Future<File?> _generateResolutionPdf(String incidentId) async {
+    try {
+      // Obtener los datos actualizados del incidente
+      final incidentDoc = await _firestore.collection('incidents').doc(incidentId).get();
+      if (!incidentDoc.exists) {
+        throw Exception('Incidente no encontrado');
+      }
+
+      final incidentData = incidentDoc.data()!;
+      final incident = Incident.fromFirestore(incidentDoc.id, incidentData);
+
+      // Obtener información de la computadora si está disponible
+      Computer? computer;
+      if (incident.computerNumbers.isNotEmpty) {
+        try {
+          computer = await _computerService.getComputerByLabAndNumber(
+            incident.labName,
+            incident.computerNumbers.first,
+          );
+        } catch (e) {
+          print('Error obteniendo información de computadora: $e');
+        }
+      }
+
+      // Determinar el nombre del usuario de soporte
+      String supportUserName = 'Usuario de Soporte';
+      if (incidentData['assignedTo'] != null) {
+        final assignedTo = incidentData['assignedTo'] as Map<String, dynamic>;
+        supportUserName = assignedTo['name'] ?? 'Usuario de Soporte';
+      }
+
+      // Generar el PDF
+      final pdfFile = await PdfService.generateIncidentResolutionReport(
+        incident: incident,
+        computer: computer,
+        supportUserName: supportUserName,
+      );
+
+      return pdfFile;
+    } catch (e) {
+      print('Error generando PDF: $e');
+      // No lanzar error para que no afecte la resolución del incidente
+      return null;
     }
   }
 

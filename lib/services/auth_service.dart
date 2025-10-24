@@ -11,7 +11,7 @@ class AuthService {
       'profile',
     ],
     // Configuración del Client ID para web (necesario para Flutter Web)
-    clientId: '63833424445-grc16ame64r65bgmscndh8adbguqo5hc.apps.googleusercontent.com',
+    clientId: '649968119165-kd08h2s05pnglfe91gvislrosti91rqn.apps.googleusercontent.com',
     // // Agregar configuración específica para depuración
     // signInOption: SignInOption.standard,
   );

@@ -2,10 +2,12 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/computer_model.dart';
 import '../services/computer_service.dart';
+import '../services/lab_service.dart';
 
 class ComputerInitializer {
   final ComputerService _computerService = ComputerService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final LabService _labService = LabService();
   final Random _random = Random();
 
   // Modelos reales de HP
@@ -77,43 +79,139 @@ class ComputerInitializer {
       monitor: _createComponent('HP', _monitorModels, 'MON'),
       mouse: _createComponent('HP', _mouseModels, 'MOU'),
       keyboard: _createComponent('HP', _keyboardModels, 'KEY'),
+      equipmentType: EquipmentType.student,
       createdAt: now,
       isActive: true,
-      notes: 'Computadora inicializada automáticamente - Laboratorio $labName',
+      notes: 'Computadora de estudiante inicializada automáticamente - Laboratorio $labName',
+    );
+  }
+
+  // Crear PC del docente
+  Computer _createTeacherComputer(String labName) {
+    final now = DateTime.now();
+    
+    return Computer(
+      id: '', // Se asignará automáticamente
+      labName: labName,
+      computerNumber: 0, // Índice especial para PC del docente
+      cpu: _createComponent('HP', _cpuModels, 'TCPU'),
+      monitor: _createComponent('HP', _monitorModels, 'TMON'),
+      mouse: _createComponent('HP', _mouseModels, 'TMOU'),
+      keyboard: _createComponent('HP', _keyboardModels, 'TKEY'),
+      equipmentType: EquipmentType.teacher,
+      createdAt: now,
+      isActive: true,
+      notes: 'PC del docente inicializada automáticamente - Laboratorio $labName',
+    );
+  }
+
+  // Crear proyector
+  Computer _createProjector(String labName) {
+    final projectorModels = [
+      'HP MP3135',
+      'HP MP3220',
+      'HP MP3325',
+      'HP MP3130',
+    ];
+    
+    final now = DateTime.now();
+    
+    return Computer(
+      id: '', // Se asignará automáticamente
+      labName: labName,
+      computerNumber: 999, // Índice especial para proyector
+      cpu: ComputerComponent(
+        brand: 'HP',
+        model: 'Projector Control Unit',
+        serialNumber: _generateSerialNumber('PCPU'),
+      ),
+      monitor: ComputerComponent(
+        brand: 'HP',
+        model: projectorModels[_random.nextInt(projectorModels.length)],
+        serialNumber: _generateSerialNumber('PROJ'),
+      ),
+      mouse: ComputerComponent(
+        brand: 'HP',
+        model: 'Remote Control',
+        serialNumber: _generateSerialNumber('PREM'),
+      ),
+      keyboard: ComputerComponent(
+        brand: 'HP',
+        model: 'Control Panel',
+        serialNumber: _generateSerialNumber('PCTL'),
+      ),
+      equipmentType: EquipmentType.projector,
+      createdAt: now,
+      isActive: true,
+      notes: 'Proyector inicializado automáticamente - Laboratorio $labName',
     );
   }
 
   // Inicializar computadoras para un laboratorio específico
-  Future<void> initializeLabComputers(String labName, {int count = 20}) async {
+  Future<void> initializeLabComputers(String labName, {
+    int count = 20,
+    bool includeTeacherPC = true,
+    bool includeProjector = true
+  }) async {
     try {
-      print('Inicializando $count computadoras para Laboratorio $labName...');
+      print('Inicializando equipos para Laboratorio $labName...');
+      print('- $count computadoras de estudiantes');
+      if (includeTeacherPC) print('- 1 PC del docente');
+      if (includeProjector) print('- 1 proyector');
       
       // Verificar si ya existen computadoras en este laboratorio
       final existingComputers = await _computerService.getComputerCountByLab();
       final currentCount = existingComputers[labName] ?? 0;
       
       if (currentCount > 0) {
-        print('El Laboratorio $labName ya tiene $currentCount computadoras registradas.');
+        print('El Laboratorio $labName ya tiene $currentCount equipos registrados.');
         print('Continuando con la inicialización...');
       }
 
       int successCount = 0;
       int errorCount = 0;
 
+      // Crear computadoras de estudiantes
       for (int i = 1; i <= count; i++) {
         try {
           final computer = _createComputer(labName, i);
           await _computerService.addComputer(computer);
           successCount++;
-          print('✓ Computadora $i creada para Laboratorio $labName');
+          print('✓ PC Estudiante $i creada para Laboratorio $labName');
         } catch (e) {
           errorCount++;
-          print('✗ Error al crear computadora $i para Laboratorio $labName: $e');
+          print('✗ Error al crear PC Estudiante $i para Laboratorio $labName: $e');
+        }
+      }
+
+      // Crear PC del docente
+      if (includeTeacherPC) {
+        try {
+          final teacherPC = _createTeacherComputer(labName);
+          await _computerService.addComputer(teacherPC);
+          successCount++;
+          print('✓ PC del Docente creada para Laboratorio $labName');
+        } catch (e) {
+          errorCount++;
+          print('✗ Error al crear PC del Docente para Laboratorio $labName: $e');
+        }
+      }
+
+      // Crear proyector
+      if (includeProjector) {
+        try {
+          final projector = _createProjector(labName);
+          await _computerService.addComputer(projector);
+          successCount++;
+          print('✓ Proyector creado para Laboratorio $labName');
+        } catch (e) {
+          errorCount++;
+          print('✗ Error al crear Proyector para Laboratorio $labName: $e');
         }
       }
 
       print('\n=== Resumen Laboratorio $labName ===');
-      print('Computadoras creadas exitosamente: $successCount');
+      print('Equipos creados exitosamente: $successCount');
       print('Errores: $errorCount');
       print('Total: ${successCount + errorCount}');
       
@@ -122,34 +220,94 @@ class ComputerInitializer {
     }
   }
 
-  // Inicializar todos los laboratorios
-  Future<void> initializeAllLabs({int computersPerLab = 20}) async {
-    final labs = ['A', 'B', 'C', 'D', 'E', 'F'];
-    
-    print('=== INICIANDO INICIALIZACIÓN DE COMPUTADORAS ===');
-    print('Laboratorios a procesar: ${labs.join(', ')}');
-    print('Computadoras por laboratorio: $computersPerLab');
-    print('Total de computadoras a crear: ${labs.length * computersPerLab}');
-    print('');
+  // Inicializar laboratorio específico con configuración personalizada
+  Future<void> initializeLabWithConfig(String labName, {
+    int studentComputers = 20,
+    bool includeTeacherPC = true,
+    bool includeProjector = true,
+    String labType = 'lab'
+  }) async {
+    try {
+      // Crear o actualizar el laboratorio en la colección labs
+      await _labService.createLabDynamic(
+        labName,
+        studentComputers: studentComputers,
+        hasTeacherPC: includeTeacherPC,
+        hasProjector: includeProjector,
+        type: labType,
+      );
 
-    for (final lab in labs) {
-      await initializeLabComputers(lab, count: computersPerLab);
-      print(''); // Línea en blanco entre laboratorios
+      // Inicializar las computadoras
+      await initializeLabComputers(
+        labName,
+        count: studentComputers,
+        includeTeacherPC: includeTeacherPC,
+        includeProjector: includeProjector,
+      );
+
+      print('✅ Laboratorio $labName configurado completamente');
+    } catch (e) {
+      print('❌ Error configurando Laboratorio $labName: $e');
+      rethrow;
+    }
+  }
+
+  // Método para agregar equipos faltantes a laboratorios existentes
+  Future<void> addMissingEquipmentToLab(String labName) async {
+    try {
+      print('Verificando equipos faltantes en Laboratorio $labName...');
       
-      // Pequeña pausa para no sobrecargar Firestore
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
+      // Obtener equipos existentes
+      final snapshot = await _firestore
+          .collection('computers')
+          .where('labName', isEqualTo: labName)
+          .where('isActive', isEqualTo: true)
+          .get();
 
-    // Obtener estadísticas finales
-    final finalCounts = await _computerService.getComputerCountByLab();
-    
-    print('=== RESUMEN FINAL ===');
-    for (final lab in labs) {
-      final count = finalCounts[lab] ?? 0;
-      print('Laboratorio $lab: $count computadoras');
+      bool hasTeacherPC = false;
+      bool hasProjector = false;
+
+      for (final doc in snapshot.docs) {
+        final computer = Computer.fromMap(doc.data());
+        if (computer.isTeacherComputer) hasTeacherPC = true;
+        if (computer.isProjector) hasProjector = true;
+      }
+
+      int addedCount = 0;
+
+      // Agregar PC del docente si no existe
+      if (!hasTeacherPC) {
+        try {
+          final teacherPC = _createTeacherComputer(labName);
+          await _computerService.addComputer(teacherPC);
+          addedCount++;
+          print('✓ PC del Docente agregada al Laboratorio $labName');
+        } catch (e) {
+          print('✗ Error al agregar PC del Docente: $e');
+        }
+      }
+
+      // Agregar proyector si no existe
+      if (!hasProjector) {
+        try {
+          final projector = _createProjector(labName);
+          await _computerService.addComputer(projector);
+          addedCount++;
+          print('✓ Proyector agregado al Laboratorio $labName');
+        } catch (e) {
+          print('✗ Error al agregar Proyector: $e');
+        }
+      }
+
+      if (addedCount == 0) {
+        print('ℹ️ El Laboratorio $labName ya tiene todos los equipos necesarios');
+      } else {
+        print('✅ Se agregaron $addedCount equipos al Laboratorio $labName');
+      }
+
+    } catch (e) {
+      print('❌ Error verificando equipos del Laboratorio $labName: $e');
     }
-    
-    print('\nInicialización completada.');
   }
 
   // Método para limpiar computadoras de un laboratorio (útil para testing)
@@ -173,6 +331,50 @@ class ComputerInitializer {
       print('✓ $deletedCount computadoras eliminadas del Laboratorio $labName');
     } catch (e) {
       print('Error al limpiar Laboratorio $labName: $e');
+    }
+  }
+
+  // Método para inicializar todos los laboratorios
+  Future<void> initializeAllLabs({int computersPerLab = 20}) async {
+    final labs = ['A', 'B', 'C', 'D', 'E', 'F'];
+    
+    print('=== INICIALIZANDO TODOS LOS LABORATORIOS ===');
+    print('Laboratorios a configurar: ${labs.join(', ')}');
+    print('Computadoras por laboratorio: $computersPerLab');
+    print('');
+    
+    int totalSuccess = 0;
+    int totalErrors = 0;
+    
+    for (final lab in labs) {
+      try {
+        print('--- Configurando Laboratorio $lab ---');
+        await initializeLabWithConfig(
+          lab,
+          studentComputers: computersPerLab,
+          includeTeacherPC: true,
+          includeProjector: true,
+          labType: 'lab',
+        );
+        totalSuccess++;
+        print('✅ Laboratorio $lab configurado exitosamente');
+        print('');
+      } catch (e) {
+        totalErrors++;
+        print('❌ Error configurando Laboratorio $lab: $e');
+        print('');
+      }
+    }
+    
+    print('=== RESUMEN FINAL ===');
+    print('Laboratorios configurados exitosamente: $totalSuccess');
+    print('Laboratorios con errores: $totalErrors');
+    print('Total de laboratorios: ${totalSuccess + totalErrors}');
+    
+    if (totalErrors == 0) {
+      print('🎉 ¡Todos los laboratorios fueron configurados exitosamente!');
+    } else {
+      print('⚠️ Algunos laboratorios tuvieron errores. Revisa los logs anteriores.');
     }
   }
 

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../models/incident_model.dart';
 import '../utils/colors.dart';
+import '../services/file_handler_service.dart';
 
-class IncidentCard extends StatelessWidget {
+class IncidentCard extends StatefulWidget {
   final Incident incident;
   final VoidCallback? onTap;
   final bool showTakeButton;
   final VoidCallback? onTake;
+  final bool showDownloadButton;
 
   const IncidentCard({
     Key? key,
@@ -14,12 +16,18 @@ class IncidentCard extends StatelessWidget {
     this.onTap,
     this.showTakeButton = false,
     this.onTake,
+    this.showDownloadButton = true,
   }) : super(key: key);
 
   @override
+  State<IncidentCard> createState() => _IncidentCardState();
+}
+
+class _IncidentCardState extends State<IncidentCard> {
+  @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: widget.onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(20),
@@ -42,11 +50,11 @@ class IncidentCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: incident.getStatusColor(),
+                    color: widget.incident.getStatusColor(),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    incident.getStatusText(),
+                    widget.incident.getStatusText(),
                     style: const TextStyle(
                       color: AppColors.white,
                       fontSize: 12,
@@ -55,8 +63,27 @@ class IncidentCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                // Mostrar ícono de descarga para incidentes resueltos
+                if (widget.showDownloadButton && widget.incident.status == IncidentStatus.resolved) ...[
+                  GestureDetector(
+                    onTap: () => _downloadIncidentPdf(widget.incident),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.download,
+                        size: 16,
+                        color: AppColors.primaryBlue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Text(
-                  incident.getTimeAgo(),
+                  widget.incident.getTimeAgo(),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textLight,
@@ -66,7 +93,7 @@ class IncidentCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Lab ${incident.labName} - PC: ${incident.computerNumbers.join(", ")}',
+              'Lab ${widget.incident.labName} - PC: ${widget.incident.computerNumbers.join(", ")}',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -92,7 +119,7 @@ class IncidentCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          incident.type,
+                          widget.incident.type,
                           style: const TextStyle(
                             fontSize: 14,
                             color: AppColors.textDark,
@@ -113,7 +140,7 @@ class IncidentCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Reportado por: ${incident.reportedBy}',
+                          'Reportado por: ${widget.incident.reportedBy}',
                           style: const TextStyle(
                             fontSize: 13,
                             color: AppColors.textLight,
@@ -122,7 +149,7 @@ class IncidentCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  if (incident.assignedTo != null) ...[
+                  if (widget.incident.assignedTo != null) ...[
                     const SizedBox(height: 6),
                     Row(
                       children: [
@@ -134,7 +161,7 @@ class IncidentCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Asignado a: ${incident.assignedTo!.name}',
+                            'Asignado a: ${widget.incident.assignedTo!.name}',
                             style: const TextStyle(
                               fontSize: 13,
                               color: AppColors.lightBlue,
@@ -148,14 +175,14 @@ class IncidentCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (showTakeButton || onTap != null) ...[
+            if (widget.showTakeButton || widget.onTap != null) ...[
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  if (showTakeButton && onTake != null)
+                  if (widget.showTakeButton && widget.onTake != null)
                     ElevatedButton.icon(
-                      onPressed: onTake,
+                      onPressed: widget.onTake,
                       icon: const Icon(Icons.assignment_ind, size: 16),
                       label: const Text('Tomar'),
                       style: ElevatedButton.styleFrom(
@@ -170,7 +197,7 @@ class IncidentCard extends StatelessWidget {
                   else
                     const SizedBox.shrink(),
                   
-                  if (onTap != null)
+                  if (widget.onTap != null)
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -197,5 +224,54 @@ class IncidentCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _downloadIncidentPdf(Incident incident) async {
+    try {
+      // Buscar el PDF correspondiente al incidente
+      final pdfFiles = await FileHandlerService.getIncidentReportPdfs();
+      
+      // Buscar el archivo que corresponde a este incidente
+      final matchingPdf = pdfFiles.where((file) {
+        final fileName = file.path.split('/').last;
+        return fileName.contains('reporte_incidente_${incident.id}_');
+      }).toList();
+
+      if (matchingPdf.isEmpty) {
+        // No se encontró el PDF
+        _showMessage('No se encontró el reporte PDF para este incidente', isError: true);
+        return;
+      }
+
+      final pdfFile = matchingPdf.first;
+      final fileName = pdfFile.path.split('/').last;
+
+      // Copiar archivo a la carpeta de descargas
+      final downloadPath = await FileHandlerService.copyToDownloads(pdfFile.path, fileName);
+      
+      _showMessage(
+        downloadPath != pdfFile.path 
+          ? 'Reporte descargado en: Downloads/$fileName'
+          : 'Reporte disponible: $fileName',
+        isError: false
+      );
+
+    } catch (e) {
+      _showMessage('Error al descargar el reporte: $e', isError: true);
+    }
+  }
+
+  void _showMessage(String message, {required bool isError}) {
+    // Buscar el contexto más cercano para mostrar el SnackBar
+    final context = this.context;
+    if (context != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red : AppColors.success,
+          duration: Duration(seconds: isError ? 4 : 3),
+        ),
+      );
+    }
   }
 }

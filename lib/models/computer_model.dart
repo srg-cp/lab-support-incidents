@@ -38,6 +38,8 @@ class ComputerComponent {
   }
 }
 
+enum EquipmentType { student, teacher, projector }
+
 class Computer {
   final String id;
   final String labName;
@@ -46,6 +48,8 @@ class Computer {
   final ComputerComponent monitor;
   final ComputerComponent mouse;
   final ComputerComponent keyboard;
+  final ComputerComponent? projector; // Opcional para proyectores
+  final EquipmentType equipmentType; // Tipo de equipo
   final DateTime createdAt;
   final DateTime? lastUpdated;
   final bool isActive;
@@ -59,6 +63,8 @@ class Computer {
     required this.monitor,
     required this.mouse,
     required this.keyboard,
+    this.projector,
+    this.equipmentType = EquipmentType.student,
     required this.createdAt,
     this.lastUpdated,
     this.isActive = true,
@@ -74,6 +80,8 @@ class Computer {
       'monitor': monitor.toMap(),
       'mouse': mouse.toMap(),
       'keyboard': keyboard.toMap(),
+      'projector': projector?.toMap(),
+      'equipmentType': equipmentType.name,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'lastUpdated': lastUpdated?.millisecondsSinceEpoch,
       'isActive': isActive,
@@ -82,6 +90,20 @@ class Computer {
   }
 
   factory Computer.fromMap(Map<String, dynamic> map) {
+    EquipmentType equipmentType = EquipmentType.student;
+    if (map['equipmentType'] != null) {
+      switch (map['equipmentType']) {
+        case 'teacher':
+          equipmentType = EquipmentType.teacher;
+          break;
+        case 'projector':
+          equipmentType = EquipmentType.projector;
+          break;
+        default:
+          equipmentType = EquipmentType.student;
+      }
+    }
+
     return Computer(
       id: map['id'] ?? '',
       labName: map['labName'] ?? '',
@@ -90,6 +112,10 @@ class Computer {
       monitor: ComputerComponent.fromMap(map['monitor'] ?? {}),
       mouse: ComputerComponent.fromMap(map['mouse'] ?? {}),
       keyboard: ComputerComponent.fromMap(map['keyboard'] ?? {}),
+      projector: map['projector'] != null 
+          ? ComputerComponent.fromMap(map['projector'])
+          : null,
+      equipmentType: equipmentType,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
       lastUpdated: map['lastUpdated'] != null 
           ? DateTime.fromMillisecondsSinceEpoch(map['lastUpdated'])
@@ -136,5 +162,21 @@ class Computer {
         component.brand.isNotEmpty && 
         component.serialNumber.isNotEmpty && 
         component.model.isNotEmpty);
+  }
+  
+  // Métodos de utilidad para identificar tipos de equipo
+  bool get isStudentComputer => equipmentType == EquipmentType.student;
+  bool get isTeacherComputer => equipmentType == EquipmentType.teacher;
+  bool get isProjector => equipmentType == EquipmentType.projector;
+  
+  String get equipmentTypeDisplayName {
+    switch (equipmentType) {
+      case EquipmentType.projector:
+        return 'Proyector';
+      case EquipmentType.teacher:
+        return 'PC Docente';
+      case EquipmentType.student:
+        return 'PC Estudiante';
+    }
   }
 }

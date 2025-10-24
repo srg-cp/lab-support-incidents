@@ -8,6 +8,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/image_viewer.dart';
 import '../utils/date_formatter.dart';
+import '../utils/equipment_formatter.dart';
 
 class StudentsScreen extends StatefulWidget {
   const StudentsScreen({Key? key}) : super(key: key);
@@ -365,9 +366,9 @@ class _StudentIncidentDetailScreen extends StatelessWidget {
                 _buildDetailRow(Icons.location_on, 'Laboratorio', labName),
                 _buildDetailRow(
                   Icons.computer, 
-                  'Computadoras', 
+                  'Equipos', 
                   computerNumbers.isNotEmpty 
-                      ? computerNumbers.join(', ') 
+                      ? EquipmentFormatter.formatEquipmentNumbers(computerNumbers)
                       : 'N/A'
                 ),
                 if (reportedAt != null)
@@ -858,8 +859,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         : incidentData['title'];
     final description = incidentData['description'] ?? 'Sin descripción';
     final status = incidentData['status'] ?? 'unknown';
-    final computerNumber = incidentData['computerNumbers']?.isNotEmpty == true 
-        ? incidentData['computerNumbers'][0].toString() 
+    final computerNumbers = incidentData['computerNumbers'] as List<dynamic>? ?? [];
+    final equipmentText = computerNumbers.isNotEmpty 
+        ? EquipmentFormatter.formatFirstEquipment(computerNumbers)
         : 'N/A';
 
     Color statusColor;
@@ -912,7 +914,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               children: [
                 Icon(Icons.computer, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
-                Text('PC: $computerNumber'),
+                Text(equipmentText),
               ],
             ),
           ],
@@ -1041,9 +1043,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             _buildDetailRow(Icons.location_on, 'Laboratorio', labName),
             _buildDetailRow(
               Icons.computer, 
-              'Computadoras', 
+              'Equipos', 
               computerNumbers.isNotEmpty 
-                  ? computerNumbers.join(', ') 
+                  ? EquipmentFormatter.formatEquipmentNumbers(computerNumbers)
                   : 'N/A'
             ),
             if (reportedAt != null)

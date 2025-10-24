@@ -104,6 +104,7 @@ class _UserReportsScreenState extends State<UserReportsScreen> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: IncidentCard(
                     incident: incident,
+                    showDownloadButton: true,
                     onTap: () => _showIncidentDetail(incident),
                   ),
                 );

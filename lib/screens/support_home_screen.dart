@@ -8,6 +8,8 @@ import '../widgets/empty_state.dart';
 import '../widgets/custom_modal.dart';
 import '../providers/incident_provider.dart';
 import 'incident_resolution_screen.dart';
+import 'lab_selection_screen.dart';
+import 'user_reports_screen.dart';
 
 class SupportHomeScreen extends StatefulWidget {
   const SupportHomeScreen({Key? key}) : super(key: key);
@@ -17,6 +19,66 @@ class SupportHomeScreen extends StatefulWidget {
 }
 
 class _SupportHomeScreenState extends State<SupportHomeScreen> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _screens = [
+    const SupportIncidentsView(),
+    const SupportReportIncident(),
+    const SupportMyReports(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Soporte Técnico'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
+        ],
+      ),
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        selectedItemColor: AppColors.accentGold,
+        unselectedItemColor: AppColors.textLight,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.support_agent),
+            label: 'Incidentes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.report_problem),
+            label: 'Reportar',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'Mis Reportes',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Pantalla principal de incidentes para soporte (código original)
+class SupportIncidentsView extends StatefulWidget {
+  const SupportIncidentsView({Key? key}) : super(key: key);
+
+  @override
+  State<SupportIncidentsView> createState() => _SupportIncidentsViewState();
+}
+
+class _SupportIncidentsViewState extends State<SupportIncidentsView> {
   String _filterStatus = 'all';
   Map<String, int> _statistics = {};
   bool _isLoadingStats = true;
@@ -72,105 +134,93 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Soporte Técnico'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Estadísticas del usuario de soporte
-          _buildStatisticsCard(),
-          
-          // Filtros
-          _buildFilterTabs(),
-          
-          // Lista de incidentes
-          Expanded(
-            child: Consumer<IncidentProvider>(
-              builder: (context, provider, child) {
-                if (provider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+    return Column(
+      children: [
+        // Estadísticas del usuario de soporte
+        _buildStatisticsCard(),
+        
+        // Filtros
+        _buildFilterTabs(),
+        
+        // Lista de incidentes
+        Expanded(
+          child: Consumer<IncidentProvider>(
+            builder: (context, provider, child) {
+              if (provider.isLoading) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                if (provider.error != null) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error, size: 64, color: Colors.red),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error: ${provider.error}',
-                          style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadData,
-                          child: const Text('Reintentar'),
-                        ),
-                      ],
+              if (provider.error != null) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error, size: 64, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error: ${provider.error}',
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadData,
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final filteredIncidents = _getFilteredIncidents(provider.incidents);
+
+              // Debug: Mostrar información de incidentes
+              for (var incident in filteredIncidents) {
+                print('📄 Incidente ${incident.id}:');
+                print('   - Estado: ${incident.status}');
+                print('   - Asignado a: ${incident.assignedTo?.name} (${incident.assignedTo?.uid})');
+                print('   - Lab: ${incident.labName}');
+              }
+
+              if (filteredIncidents.isEmpty) {
+                return EmptyState(
+                  icon: Icons.inbox,
+                  title: 'No hay incidentes',
+                  message: _getEmptyMessage(),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: filteredIncidents.length,
+                itemBuilder: (context, index) {
+                  final incident = filteredIncidents[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: IncidentCard(
+                      incident: incident,
+                      showDownloadButton: true,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => IncidentResolutionScreen(
+                              incident: incident,
+                            ),
+                          ),
+                        ).then((_) => _loadData());
+                      },
+                      showTakeButton: _filterStatus == 'all' && 
+                                    incident.status == IncidentStatus.pending,
+                      onTake: () => _takeIncident(incident.id),
                     ),
                   );
-                }
-
-                final filteredIncidents = _getFilteredIncidents(provider.incidents);
-
-                // Debug: Mostrar información de incidentes
-                for (var incident in filteredIncidents) {
-                  print('📄 Incidente ${incident.id}:');
-                  print('   - Estado: ${incident.status}');
-                  print('   - Asignado a: ${incident.assignedTo?.name} (${incident.assignedTo?.uid})');
-                  print('   - Lab: ${incident.labName}');
-                }
-
-                if (filteredIncidents.isEmpty) {
-                  return EmptyState(
-                    icon: Icons.inbox,
-                    title: 'No hay incidentes',
-                    message: _getEmptyMessage(),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filteredIncidents.length,
-                  itemBuilder: (context, index) {
-                    final incident = filteredIncidents[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: IncidentCard(
-                        incident: incident,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => IncidentResolutionScreen(
-                                incident: incident,
-                              ),
-                            ),
-                          ).then((_) => _loadData());
-                        },
-                        showTakeButton: _filterStatus == 'all' && 
-                                      incident.status == IncidentStatus.pending,
-                        onTake: () => _takeIncident(incident.id),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                },
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -403,5 +453,163 @@ class _SupportHomeScreenState extends State<SupportHomeScreen> {
           },
         );
     }
+  }
+}
+
+// Pantalla para que el personal de soporte reporte incidentes
+class SupportReportIncident extends StatelessWidget {
+  const SupportReportIncident({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Reportar Incidente',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Como personal de soporte, puedes reportar incidentes en cualquier laboratorio',
+            style: TextStyle(
+              fontSize: 16,
+              color: AppColors.textLight,
+            ),
+          ),
+          const SizedBox(height: 32),
+          _buildCard(
+            context,
+            icon: Icons.report_problem,
+            title: 'Reportar Incidente',
+            subtitle: 'Informa sobre problemas en los laboratorios',
+            color: AppColors.accentGold,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LabSelectionScreen(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: AppColors.textLight,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Pantalla para que el personal de soporte vea sus reportes
+class SupportMyReports extends StatelessWidget {
+  const SupportMyReports({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mis Reportes',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Incidentes que has reportado como personal de soporte',
+            style: TextStyle(
+              fontSize: 16,
+              color: AppColors.textLight,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: UserReportsScreen(),
+          ),
+        ],
+      ),
+    );
   }
 }

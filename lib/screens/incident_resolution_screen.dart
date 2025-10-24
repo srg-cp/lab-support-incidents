@@ -3,12 +3,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import '../utils/colors.dart';
+import '../utils/equipment_formatter.dart';
 import '../models/incident_model.dart';
 import '../widgets/custom_modal.dart';
 import '../widgets/image_viewer.dart';
 import '../providers/incident_provider.dart';
 import '../services/auth_service.dart';
-import '../services/auth_service.dart';
+import '../services/file_handler_service.dart';
 
 class IncidentResolutionScreen extends StatefulWidget {
   final Incident incident;
@@ -210,6 +211,242 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
     );
   }
 
+  void _showPdfGeneratedModal(File pdfFile) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.check_circle,
+                color: AppColors.success,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Incidente Resuelto',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'El incidente ha sido resuelto exitosamente.',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.primaryBlue.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.picture_as_pdf,
+                    color: AppColors.primaryBlue,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Reporte PDF Generado',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryBlue,
+                          ),
+                        ),
+                        Text(
+                          'Se ha creado automáticamente un reporte del incidente',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '¿Qué deseas hacer con el reporte?',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    await _downloadGeneratedPdf(pdfFile);
+                    if (mounted) {
+                      Navigator.of(context).pop(); // Cerrar pantalla de resolución
+                    }
+                  },
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Descargar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryBlue,
+                    side: const BorderSide(color: AppColors.primaryBlue),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    await _openGeneratedPdf(pdfFile);
+                    if (mounted) {
+                      Navigator.of(context).pop(); // Cerrar pantalla de resolución
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Abrir'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop(); // Cerrar pantalla de resolución
+              },
+              child: const Text('Continuar sin descargar'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadGeneratedPdf(File pdfFile) async {
+    try {
+      final fileName = pdfFile.path.split(Platform.pathSeparator).last;
+      
+      // Mostrar indicador de carga
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Text('Descargando reporte...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Copiar archivo a la carpeta de descargas
+      final downloadPath = await FileHandlerService.copyToDownloads(pdfFile.path, fileName);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              downloadPath != pdfFile.path 
+                ? 'Reporte descargado en: Downloads/$fileName'
+                : 'Reporte disponible: $fileName'
+            ),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Abrir',
+              textColor: Colors.white,
+              onPressed: () => _openGeneratedPdf(pdfFile),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al descargar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openGeneratedPdf(File pdfFile) async {
+    try {
+      final success = await FileHandlerService.openPdf(pdfFile.path);
+      
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir el archivo. Intenta descargarlo primero.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al abrir archivo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _resolveIncident(IncidentStatus newStatus) async {
     // Verificar si el incidente ya está resuelto
     if (widget.incident.status == IncidentStatus.resolved) {
@@ -241,7 +478,7 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
           break;
       }
       
-      final success = await provider.resolveIncident(
+      final result = await provider.resolveIncident(
         incidentId: widget.incident.id,
         status: statusString,
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
@@ -251,11 +488,13 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
       setState(() => _isSubmitting = false);
       
       if (mounted) {
-        if (success) {
+        if (result['success'] == true) {
           String message = '';
           switch (newStatus) {
             case IncidentStatus.resolved:
-              message = 'El incidente ha sido marcado como resuelto exitosamente.';
+              message = result['pdfFile'] != null 
+                  ? 'El incidente ha sido marcado como resuelto exitosamente.\n\n📄 Se ha generado automáticamente un reporte PDF que se encuentra guardado en la carpeta de documentos de la aplicación.'
+                  : 'El incidente ha sido marcado como resuelto exitosamente.';
               break;
             case IncidentStatus.cancelled:
               message = 'El incidente ha sido cancelado y devuelto al estado pendiente para que otro técnico pueda tomarlo.';
@@ -271,15 +510,20 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
               break;
           }
           
-          CustomModal.show(
-            context,
-            type: ModalType.success,
-            title: 'Actualizado',
-            message: message,
-            onConfirm: () {
-              Navigator.of(context).pop();
-            },
-          );
+          // Mostrar modal con opciones de descarga si se generó PDF
+          if (newStatus == IncidentStatus.resolved && result['pdfFile'] != null) {
+            _showPdfGeneratedModal(result['pdfFile'] as File);
+          } else {
+            CustomModal.show(
+              context,
+              type: ModalType.success,
+              title: 'Actualizado',
+              message: message,
+              onConfirm: () {
+                Navigator.of(context).pop();
+              },
+            );
+          }
         } else {
           CustomModal.show(
             context,
@@ -372,7 +616,7 @@ class _IncidentResolutionScreenState extends State<IncidentResolutionScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'PC: ${widget.incident.computerNumbers.join(", ")}',
+                      'Equipos: ${EquipmentFormatter.formatEquipmentNumbers(widget.incident.computerNumbers)}',
                       style: const TextStyle(
                         fontSize: 16,
                         color: AppColors.lightBlue,

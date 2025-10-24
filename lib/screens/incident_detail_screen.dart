@@ -3,9 +3,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import '../utils/colors.dart';
+import '../utils/equipment_formatter.dart';
 import '../widgets/custom_modal.dart';
 import '../providers/incident_provider.dart';
 import '../models/computer_model.dart';
+import '../constants/incident_types.dart';
 
 class IncidentDetailScreen extends StatefulWidget {
   final String labName;
@@ -29,17 +31,23 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
   File? _selectedMedia;
   bool _isSubmitting = false;
 
-  final List<Map<String, dynamic>> incidentTypes = [
-    {'label': 'Pantallazo azul', 'icon': Icons.desktop_windows},
-    {'label': 'No prende el monitor', 'icon': Icons.tv_off},
-    {'label': 'No prende la computadora', 'icon': Icons.power_off},
-    {'label': 'Teclado no funciona', 'icon': Icons.keyboard},
-    {'label': 'Mouse no funciona', 'icon': Icons.mouse},
-    {'label': 'Sin internet', 'icon': Icons.wifi_off},
-    {'label': 'Lentitud extrema', 'icon': Icons.hourglass_empty},
-    {'label': 'Software no abre', 'icon': Icons.apps},
-    {'label': 'Otro problema', 'icon': Icons.more_horiz},
-  ];
+  List<Map<String, dynamic>> get incidentTypes {
+    // Determinar si hay proyectores en la selección
+    bool hasProjector = widget.selectedComputers.any((num) => num == EquipmentFormatter.projectorIndex);
+    bool hasTeacherPC = widget.selectedComputers.any((num) => num == EquipmentFormatter.teacherPCIndex);
+    bool hasStudentPCs = widget.selectedComputers.any((num) => num > EquipmentFormatter.teacherPCIndex && num != EquipmentFormatter.projectorIndex);
+    
+    if (hasProjector && !hasStudentPCs && !hasTeacherPC) {
+      // Solo proyector seleccionado
+      return IncidentTypes.projectorIncidentTypes;
+    } else if ((hasStudentPCs || hasTeacherPC) && !hasProjector) {
+      // Solo computadoras seleccionadas
+      return IncidentTypes.computerIncidentTypes;
+    } else {
+      // Mezcla de equipos o caso general
+      return IncidentTypes.allIncidentTypes;
+    }
+  }
 
   Future<void> _pickMedia(ImageSource source) async {
     final picker = ImagePicker();
@@ -186,7 +194,7 @@ class _IncidentDetailScreenState extends State<IncidentDetailScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Lab ${widget.labName} - ${widget.selectedComputers.length} PC(s): ${widget.selectedComputers.join(", ")}',
+                        'Lab ${widget.labName} - ${widget.selectedComputers.length} equipo(s): ${EquipmentFormatter.formatEquipmentNumbers(widget.selectedComputers)}',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,

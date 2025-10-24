@@ -46,6 +46,21 @@ dependencies:
   # Cache de imágenes
   cached_network_image: ^3.3.0
 
+  # Generación de PDFs
+  pdf: ^3.10.7
+  
+  # Acceso a directorios del sistema
+  path_provider: ^2.1.1
+  
+  # Manipulación de imágenes
+  image: ^4.1.3
+  
+  # Para abrir archivos y descargas
+  open_file: ^3.3.2
+  
+  # Para compartir archivos
+  share_plus: ^7.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,41 +1,34 @@
 {
   "project_info": {
-    "project_number": "63833424445",
-    "project_id": "upt-lab-support-incidents",
-    "storage_bucket": "upt-lab-support-incidents.firebasestorage.app"
+    "project_number": "649968119165",
+    "project_id": "upt-lab-support-incident-eeba9",
+    "storage_bucket": "upt-lab-support-incident-eeba9.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:63833424445:android:c1c432b07b17e17985a054",
+        "mobilesdk_app_id": "1:649968119165:android:f35ab1bfe75dc87a317014",
         "android_client_info": {
           "package_name": "com.upt.flutter_lab_support_incidents"
         }
       },
       "oauth_client": [
         {
-          "client_id": "63833424445-grc16ame64r65bgmscndh8adbguqo5hc.apps.googleusercontent.com",
+          "client_id": "649968119165-kd08h2s05pnglfe91gvislrosti91rqn.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyDGBxhAf2KEjiDFNvC__djdeozZ-aLAdE8"
+          "current_key": "AIzaSyDNgJGrpwAbuHzxJwLLfk_QyEl5fRmnAaA"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "63833424445-grc16ame64r65bgmscndh8adbguqo5hc.apps.googleusercontent.com",
+              "client_id": "649968119165-kd08h2s05pnglfe91gvislrosti91rqn.apps.googleusercontent.com",
               "client_type": 3
-            },
-            {
-              "client_id": "63833424445-7bogvi0b59bc9huj2g3805u83g8pb6kg.apps.googleusercontent.com",
-              "client_type": 2,
-              "ios_info": {
-                "bundle_id": "com.example.flutterLabSupportIncidents"
-              }
             }
           ]
         }
