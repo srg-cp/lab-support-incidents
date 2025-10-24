@@ -71,6 +71,34 @@ jobs:
           echo "No custom icon found at assets/upt.ico, using default icon"
         fi
 
+    - name: Setup signing keystore
+      run: |
+        echo "Creating consistent signing keystore..."
+        
+        # Crear keystore con credenciales fijas para que la firma sea siempre la misma
+        keytool -genkey -v \
+          -keystore android/app/upt-lab-keystore.jks \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -alias upt-lab-key \
+          -storepass upt123456 \
+          -keypass upt123456 \
+          -dname "CN=UPT Lab Support, OU=IT Department, O=Universidad Privada de Tacna, L=Tacna, S=Tacna, C=PE"
+        
+        # Configurar variables de entorno para el build
+        echo "SIGNING_KEY_ALIAS=upt-lab-key" >> $GITHUB_ENV
+        echo "SIGNING_KEY_PASSWORD=upt123456" >> $GITHUB_ENV
+        echo "SIGNING_STORE_PASSWORD=upt123456" >> $GITHUB_ENV
+        echo "SIGNING_STORE_PATH=upt-lab-keystore.jks" >> $GITHUB_ENV
+        
+        echo "Keystore created successfully!"
+        ls -la android/app/upt-lab-keystore.jks
+        
+        # Mostrar huellas digitales para verificación
+        echo "=== HUELLAS DIGITALES DEL KEYSTORE ==="
+        keytool -list -v -keystore android/app/upt-lab-keystore.jks -alias upt-lab-key -storepass upt123456 | grep -E "(SHA1|SHA256)"
+
     - name: Run tests (optional)
       run: flutter test || echo "No tests found, continuing..."
 

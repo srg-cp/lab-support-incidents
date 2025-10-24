@@ -7,6 +7,13 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+// Cargar propiedades de firma si existen
+val keystorePropertiesFile = rootProject.file("android/app/key.properties")
+val keystoreProperties = java.util.Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.example.flutter_lab_support_incidents"
     compileSdk = flutter.compileSdkVersion
@@ -19,6 +26,25 @@ android {
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
+    }
+
+    // Configuración de firma consistente
+    signingConfigs {
+        create("release") {
+            // Prioridad: archivo key.properties > variables de entorno > valores por defecto
+            keyAlias = keystoreProperties.getProperty("keyAlias") 
+                ?: System.getenv("SIGNING_KEY_ALIAS") 
+                ?: "upt-lab-key"
+            keyPassword = keystoreProperties.getProperty("keyPassword") 
+                ?: System.getenv("SIGNING_KEY_PASSWORD") 
+                ?: "upt123456"
+            storeFile = file(keystoreProperties.getProperty("storeFile") 
+                ?: System.getenv("SIGNING_STORE_PATH") 
+                ?: "upt-lab-keystore.jks")
+            storePassword = keystoreProperties.getProperty("storePassword") 
+                ?: System.getenv("SIGNING_STORE_PASSWORD") 
+                ?: "upt123456"
+        }
     }
 
     defaultConfig {
@@ -34,8 +60,16 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Usar configuración de firma personalizada, fallback a debug si no existe el keystore
+            signingConfig = if (file("upt-lab-keystore.jks").exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+            minifyEnabled = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        debug {
             signingConfig = signingConfigs.getByName("debug")
         }
     }

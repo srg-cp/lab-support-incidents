@@ -56,11 +56,17 @@ class _LoginScreenState extends State<LoginScreen> {
         } else if (e.toString().contains('network')) {
           errorMessage = 'Error de conexión. Verifica tu internet.';
         } else if (e.toString().contains('Error al autenticar con Firebase')) {
-          errorMessage = 'Error de autenticación. Inténtalo de nuevo.';
+          errorMessage = 'Error de autenticación con Firebase. Verifica la configuración.';
+        } else if (e.toString().contains('Access Token nulo')) {
+          errorMessage = 'Error al obtener credenciales de Google. Inténtalo de nuevo.';
+        } else if (e.toString().contains('ID Token')) {
+          errorMessage = 'Error de configuración de Google Sign-In. Contacta al administrador.';
+        } else if (e.toString().contains('ClientID not set')) {
+          errorMessage = 'Error de configuración: Google Sign-In no configurado correctamente.';
         }
         
         // Solo mostrar el modal si es un error real de autenticación
-        print('❌ Error de autenticación: $e');
+        print('❌ Error de autenticación completo: $e');
         CustomModal.show(
           context,
           type: ModalType.danger,
