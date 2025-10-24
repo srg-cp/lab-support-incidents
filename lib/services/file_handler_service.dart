@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:share_plus/share_plus.dart';
 
 class FileHandlerService {
@@ -21,15 +21,15 @@ class FileHandlerService {
     try {
       final documentsPath = await getDocumentsPath();
       final directory = Directory(documentsPath);
-      
+
       if (!await directory.exists()) {
         return [];
       }
 
       final files = await directory.list().toList();
       final pdfFiles = files
-          .where((file) => 
-              file is File && 
+          .where((file) =>
+              file is File &&
               file.path.toLowerCase().endsWith('.pdf') &&
               file.path.contains('reporte_incidente_'))
           .cast<File>()
@@ -54,7 +54,7 @@ class FileHandlerService {
     try {
       final stat = await pdfFile.stat();
       final fileName = pdfFile.path.split(Platform.pathSeparator).last;
-      
+
       // Extraer ID del incidente del nombre del archivo
       String? incidentId;
       final regex = RegExp(r'reporte_incidente_([^_]+)_');
@@ -113,7 +113,7 @@ class FileHandlerService {
     try {
       final file = File(filePath);
       if (await file.exists()) {
-        final result = await OpenFile.open(filePath);
+        final result = await OpenFilex.open(filePath);
         return result.type == ResultType.done;
       }
       return false;
@@ -143,23 +143,24 @@ class FileHandlerService {
   }
 
   // Copiar archivo a la carpeta de descargas (Android)
-  static Future<String?> copyToDownloads(String filePath, String fileName) async {
+  static Future<String?> copyToDownloads(
+      String filePath, String fileName) async {
     try {
       if (Platform.isAndroid) {
         // En Android, intentar copiar a la carpeta de descargas
         final downloadsPath = '/storage/emulated/0/Download';
         final downloadsDir = Directory(downloadsPath);
-        
+
         if (await downloadsDir.exists()) {
           final newPath = '$downloadsPath/$fileName';
           final sourceFile = File(filePath);
           final targetFile = File(newPath);
-          
+
           await sourceFile.copy(newPath);
           return newPath;
         }
       }
-      
+
       // Para otras plataformas o si falla, devolver la ruta original
       return filePath;
     } catch (e) {
@@ -184,7 +185,7 @@ class FileHandlerService {
           return '$home/Downloads';
         }
       }
-      
+
       // Fallback a documentos
       final directory = await getApplicationDocumentsDirectory();
       return directory.path;

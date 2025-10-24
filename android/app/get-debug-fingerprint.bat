@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 echo Obteniendo huella digital del keystore de DEBUG...
 echo.
 
@@ -43,9 +44,9 @@ set DEBUG_KEYSTORE=""
 
 if exist "%USERPROFILE%\.android\debug.keystore" (
     set DEBUG_KEYSTORE="%USERPROFILE%\.android\debug.keystore"
-    echo Keystore de debug encontrado en: %DEBUG_KEYSTORE%
+    echo Keystore de debug encontrado en: !DEBUG_KEYSTORE!
     echo.
-    %KEYTOOL_PATH% -list -v -keystore %DEBUG_KEYSTORE% -alias androiddebugkey -storepass android -keypass android
+    %KEYTOOL_PATH% -list -v -keystore !DEBUG_KEYSTORE! -alias androiddebugkey -storepass android -keypass android
 ) else (
     echo ❌ No se encontró el keystore de debug en %USERPROFILE%\.android\debug.keystore
     echo.

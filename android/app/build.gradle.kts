@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -9,13 +12,13 @@ plugins {
 
 // Cargar propiedades de firma si existen
 val keystorePropertiesFile = rootProject.file("android/app/key.properties")
-val keystoreProperties = java.util.Properties()
+val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
-    namespace = "com.example.flutter_lab_support_incidents"
+    namespace = "com.upt.flutter_lab_support_incidents"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -66,11 +69,14 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            minifyEnabled = false
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
